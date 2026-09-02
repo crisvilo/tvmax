@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gestión de Ventas e Instalaciones</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="navbar">
+  <div>
+    <h1>Gestión de Ventas</h1>
+    <p class="navbar-subtitle">Ventas y control de instalaciones</p>
+  </div>
+
+  <div id="session-area" class="session-area hidden">
+    <div class="user-chip">
+      <span class="user-avatar" id="user-avatar">A</span>
+      <div>
+        <strong id="user-name">Usuario</strong>
+        <small id="user-role">Asesor</small>
+      </div>
+    </div>
+    <button id="btn-logout" class="btn-logout" type="button">Cerrar sesión</button>
+  </div>
+</header>
+
+<main class="container">
+
+  <!-- ========================= LOGIN ========================= -->
+  <section id="auth-view" class="auth-layout">
+    <div class="auth-card card">
+      <div class="auth-brand">
+        <span class="auth-icon">✦</span>
+        <div>
+          <span class="eyebrow">SISTEMA COMERCIAL</span>
+          <h2>Iniciar sesión</h2>
+        </div>
+      </div>
+
+      <p class="auth-description">
+        Ingresa con tu cuenta de asesor o administrador.
+      </p>
+
+      <form id="login-form" class="auth-form">
+        <div class="form-group">
+          <label for="login-email">Correo electrónico <span>*</span></label>
+          <input id="login-email" type="email" autocomplete="email" required placeholder="correo@ejemplo.com">
+        </div>
+
+        <div class="form-group">
+          <label for="login-password">Contraseña <span>*</span></label>
+          <input id="login-password" type="password" autocomplete="current-password" required placeholder="••••••••">
+        </div>
+
+        <button class="btn-primary btn-full" type="submit">Ingresar</button>
+      </form>
+
+      <div class="auth-divider"><span>¿Eres asesor?</span></div>
+      <button id="btn-show-register" class="btn-secondary btn-full" type="button">
+        Crear cuenta de asesor
+      </button>
+
+      <p class="auth-note">
+        El administrador no se registra desde esta pantalla. Su cuenta se configura directamente en Supabase.
+      </p>
+    </div>
+  </section>
+
+  <!-- ========================= REGISTRO ASESOR ========================= -->
+  <section id="register-view" class="auth-layout hidden">
+    <div class="auth-card card auth-card-wide">
+      <div class="auth-brand">
+        <span class="auth-icon">+</span>
+        <div>
+          <span class="eyebrow">NUEVO ASESOR</span>
+          <h2>Registro de asesor</h2>
+        </div>
+      </div>
+
+      <p class="auth-description">
+        Registra tus datos y la zona que tienes asignada.
+      </p>
+
+      <form id="register-form" class="register-grid">
+        <div class="form-group">
+          <label for="reg-nombre">Nombre <span>*</span></label>
+          <input id="reg-nombre" type="text" required autocomplete="given-name">
+        </div>
+
+        <div class="form-group">
+          <label for="reg-apellido">Apellido <span>*</span></label>
+          <input id="reg-apellido" type="text" required autocomplete="family-name">
+        </div>
+
+        <div class="form-group">
+          <label for="reg-documento">Documento</label>
+          <input id="reg-documento" type="text" autocomplete="off">
+        </div>
+
+        <div class="form-group">
+          <label for="reg-telefono">Teléfono</label>
+          <input id="reg-telefono" type="tel" autocomplete="tel">
+        </div>
+
+        <div class="form-group">
+          <label for="reg-zona">Zona asignada <span>*</span></label>
+          <input id="reg-zona" type="text" required placeholder="Ej. Norte">
+        </div>
+
+        <div class="form-group">
+          <label for="reg-email">Correo electrónico <span>*</span></label>
+          <input id="reg-email" type="email" required autocomplete="email">
+        </div>
+
+        <div class="form-group">
+          <label for="reg-password">Contraseña <span>*</span></label>
+          <input id="reg-password" type="password" minlength="6" required autocomplete="new-password">
+        </div>
+
+        <div class="form-group">
+          <label for="reg-password-confirm">Confirmar contraseña <span>*</span></label>
+          <input id="reg-password-confirm" type="password" minlength="6" required autocomplete="new-password">
+        </div>
+
+        <div class="form-actions form-actions-wide">
+          <button id="btn-back-login" type="button" class="btn-secondary">Volver al inicio</button>
+          <button type="submit" class="btn-primary">Registrar asesor</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- ========================= ASESOR ========================= -->
+  <section id="vista-asesor" class="view hidden">
+    <div class="page-heading">
+      <div>
+        <span class="eyebrow">OPERACIONES</span>
+        <h2>Panel del Asesor</h2>
+        <p id="asesor-welcome">Registra ventas y reconexiones y consulta tu historial.</p>
+      </div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="card stat-card">
+        <div class="stat-icon">#</div>
+        <div><h3>Total operaciones</h3><p id="asesor-total-count">0</p></div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-icon">V</div>
+        <div><h3>Ventas</h3><p id="asesor-ventas-count">0</p></div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-icon">R</div>
+        <div><h3>Reconexiones</h3><p id="asesor-reconexion-count">0</p></div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-icon">✓</div>
+        <div><h3>Instalaciones realizadas</h3><p id="asesor-complete-count">0</p></div>
+      </div>
+    </div>
+
+    <div class="card form-card">
+      <div class="card-heading">
+        <div>
+          <span class="section-kicker">NUEVA OPERACIÓN</span>
+          <h3>Registrar venta / reconexión</h3>
+        </div>
+        <span id="asesor-zone-badge" class="zone-badge">Zona: —</span>
+      </div>
+
+      <form id="sale-form" class="sale-grid">
+        <div class="form-group">
+          <label for="tipoOperacion">Tipo de operación <span>*</span></label>
+          <select id="tipoOperacion" required>
+            <option value="">Seleccione...</option>
+            <option value="Venta">Venta</option>
+            <option value="Reconexión">Reconexión</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="codigoCliente">Código de cliente <span>*</span></label>
+          <input type="text" id="codigoCliente" required placeholder="Ej. CLI-0001">
+        </div>
+
+        <div class="form-group">
+          <label for="codigoServicio">Código de servicio <span>*</span></label>
+          <input type="text" id="codigoServicio" required placeholder="Ej. INT-500">
+        </div>
+
+        <div class="form-group form-group-wide">
+          <label for="descripcionServicio">Descripción del servicio <span>*</span></label>
+          <input type="text" id="descripcionServicio" required placeholder="Ej. Internet 500 Mbps">
+        </div>
+
+        <div class="form-group">
+          <label for="zona">Zona <span>*</span></label>
+          <input type="text" id="zona" required readonly>
+        </div>
+
+        <div class="form-group">
+          <label for="fechaVenta">Fecha de venta <span>*</span></label>
+          <input type="date" id="fechaVenta" required>
+        </div>
+
+        <div class="form-actions form-actions-wide">
+          <button type="reset" class="btn-secondary">Limpiar</button>
+          <button type="submit" class="btn-primary">Registrar operación</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card table-card">
+      <div class="card-heading table-heading">
+        <div>
+          <span class="section-kicker">HISTORIAL</span>
+          <h3>Mis operaciones</h3>
+        </div>
+        <div class="table-tools">
+          <input id="filtroAsesor" type="search" placeholder="Buscar cliente, código o zona...">
+        </div>
+      </div>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Tipo</th>
+              <th>Código cliente</th>
+              <th>Código servicio</th>
+              <th>Descripción</th>
+              <th>Zona</th>
+              <th>Fecha venta</th>
+              <th>Estado instalación</th>
+              <th>Fecha instalación</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-asesor"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================= ADMIN ========================= -->
+  <section id="vista-admin" class="view hidden">
+    <div class="page-heading">
+      <div>
+        <span class="eyebrow">CONTROL GLOBAL</span>
+        <h2>Panel de Administración</h2>
+        <p>Administra instalaciones y genera reportes por asesor, estado, zona y fecha.</p>
+      </div>
+    </div>
+
+    <div class="stats-grid admin-stats">
+      <div class="card stat-card">
+        <div class="stat-icon">#</div>
+        <div><h3>Total operaciones</h3><p id="admin-total-count">0</p></div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-icon">V</div>
+        <div><h3>Ventas</h3><p id="admin-ventas-count">0</p></div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-icon">R</div>
+        <div><h3>Reconexiones</h3><p id="admin-reconexion-count">0</p></div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-icon">!</div>
+        <div><h3>Instalaciones pendientes</h3><p id="admin-pending-count">0</p></div>
+      </div>
+      <div class="card stat-card">
+        <div class="stat-icon">✓</div>
+        <div><h3>Instalaciones completas</h3><p id="admin-complete-count">0</p></div>
+      </div>
+    </div>
+
+    <div class="card filters-card">
+      <div class="card-heading">
+        <div>
+          <span class="section-kicker">REPORTES</span>
+          <h3>Filtros de consulta</h3>
+        </div>
+        <div class="filter-actions">
+          <button id="btn-clear-filters" class="btn-secondary" type="button">Limpiar filtros</button>
+          <button id="btn-print-report" class="btn-primary" type="button">🖨 Imprimir reporte</button>
+        </div>
+      </div>
+
+      <div class="filters-grid">
+        <div class="form-group">
+          <label for="filtroAdminTexto">Buscar</label>
+          <input id="filtroAdminTexto" type="search" placeholder="Cliente, servicio, descripción...">
+        </div>
+
+        <div class="form-group">
+          <label for="filtroAsesorAdmin">Asesor</label>
+          <select id="filtroAsesorAdmin">
+            <option value="">Todos los asesores</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="filtroEstadoAdmin">Estado</label>
+          <select id="filtroEstadoAdmin">
+            <option value="">Todos</option>
+            <option value="PENDIENTE">Pendientes</option>
+            <option value="REALIZADA">Completas</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="filtroTipoAdmin">Operación</label>
+          <select id="filtroTipoAdmin">
+            <option value="">Todas</option>
+            <option value="Venta">Ventas</option>
+            <option value="Reconexión">Reconexiones</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="filtroZonaAdmin">Zona</label>
+          <select id="filtroZonaAdmin">
+            <option value="">Todas las zonas</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="filtroDesdeAdmin">Fecha desde</label>
+          <input id="filtroDesdeAdmin" type="date">
+        </div>
+
+        <div class="form-group">
+          <label for="filtroHastaAdmin">Fecha hasta</label>
+          <input id="filtroHastaAdmin" type="date">
+        </div>
+      </div>
+    </div>
+
+    <div class="card table-card">
+      <div class="card-heading table-heading">
+        <div>
+          <span class="section-kicker">ADMINISTRACIÓN</span>
+          <h3>Operaciones registradas</h3>
+        </div>
+        <span id="admin-result-count" class="result-count">0 resultados</span>
+      </div>
+
+      <div class="table-wrapper">
+        <table id="admin-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Asesor</th>
+              <th>Tipo</th>
+              <th>Código cliente</th>
+              <th>Código servicio</th>
+              <th>Descripción</th>
+              <th>Zona</th>
+              <th>Fecha venta</th>
+              <th>Estado</th>
+              <th>Fecha instalación</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody id="tabla-admin"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<div id="print-report" class="print-only"></div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js"></script>
+</body>
+</html>
