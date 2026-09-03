@@ -71,9 +71,8 @@
       <div class="card form-card" id="asesor-form-section">
         <div class="card-heading"><div><span class="section-kicker">NUEVA OPERACIÓN</span><h3>Registrar venta / reconexión</h3></div><span id="asesor-zone-badge" class="zone-badge">Zona: —</span></div>
         <form id="sale-form" class="sale-grid">
-          <div class="form-group"><label for="tipoOperacion">Tipo de operación <span>*</span></label><select id="tipoOperacion" required><option value="">Seleccione...</option><option value="Venta">Venta</option><option value="Reconexión">Reconexión</option></select></div>
+          <div class="form-group"><label for="tipoOperacion">Tipo de operación <span>*</span></label><select id="tipoOperacion" required><option value="">Seleccione...</option><option value="Venta">Venta</option><option value="Reconexión">Reconexión</option><option value="Otros">Otros</option></select></div>
           <div class="form-group"><label for="codigoCliente">Código de cliente <span>*</span></label><input type="text" id="codigoCliente" required placeholder="Ej. CLI-0001"></div>
-          <div class="form-group"><label for="codigoServicio">Código de servicio <span>*</span></label><input type="text" id="codigoServicio" required placeholder="Ej. INT-500"></div>
           <div class="form-group"><label for="servicio">Servicio <span>*</span></label><select id="servicio" required><option value="">Seleccione un servicio...</option><option value="Internet">Internet</option><option value="TV">TV</option><option value="Combo">Combo</option><option value="Otros">Otros</option></select></div>
           <div class="form-group form-group-wide"><label for="descripcionServicio">Descripción del servicio <span>*</span></label><input type="text" id="descripcionServicio" required placeholder="Ej. Internet 500 Mbps"></div>
           <div class="form-group"><label for="zona">Zona <span>*</span></label><input type="text" id="zona" required readonly></div>
@@ -82,7 +81,7 @@
         </form>
       </div>
 
-      <div class="card table-card"><div class="card-heading table-heading"><div><span class="section-kicker">HISTORIAL</span><h3>Mis operaciones</h3></div><div class="table-tools"><input id="filtroAsesor" type="search" placeholder="Buscar cliente, código, servicio o zona..."></div></div><div class="table-wrapper"><table><thead><tr><th>ID</th><th>Tipo</th><th>Cliente</th><th>Servicio</th><th>Descripción</th><th>Zona</th><th>Fecha</th><th>Estado</th><th>Instalación</th></tr></thead><tbody id="tabla-asesor"></tbody></table></div></div>
+      <div class="card table-card"><div class="card-heading table-heading"><div><span class="section-kicker">HISTORIAL</span><h3>Mis operaciones</h3></div><div class="table-tools"><input id="filtroAsesor" type="search" placeholder="Buscar cliente, código, servicio o zona..."><button id="btn-asesor-report" class="btn-secondary" type="button">👁 Ver mi reporte</button><button id="btn-asesor-print" class="btn-secondary" type="button">🖨 Imprimir</button><button id="btn-asesor-pdf" class="btn-primary" type="button">📄 Descargar PDF</button></div></div><div class="table-wrapper"><table><thead><tr><th>ID</th><th>Tipo</th><th>Cliente</th><th>Servicio</th><th>Descripción</th><th>Zona</th><th>Fecha</th><th>Estado</th><th>Instalación</th></tr></thead><tbody id="tabla-asesor"></tbody></table></div></div>
     </section>
 
     <section id="admin-dashboard" class="view hidden">
@@ -103,7 +102,7 @@
         <div class="form-group"><label for="filtroAdminTexto">Buscar</label><input id="filtroAdminTexto" type="search" placeholder="Cliente, servicio, descripción..."></div>
         <div class="form-group"><label for="filtroAsesorAdmin">Asesor</label><select id="filtroAsesorAdmin"><option value="">Todos los asesores</option></select></div>
         <div class="form-group"><label for="filtroEstadoAdmin">Estado</label><select id="filtroEstadoAdmin"><option value="">Todos</option><option value="PENDIENTE">Pendientes</option><option value="REALIZADA">Realizadas</option><option value="CANCELADA">Canceladas</option></select></div>
-        <div class="form-group"><label for="filtroTipoAdmin">Operación</label><select id="filtroTipoAdmin"><option value="">Todas</option><option value="Venta">Ventas</option><option value="Reconexión">Reconexiones</option></select></div>
+        <div class="form-group"><label for="filtroTipoAdmin">Operación</label><select id="filtroTipoAdmin"><option value="">Todas</option><option value="Venta">Ventas</option><option value="Reconexión">Reconexiones</option><option value="Otros">Otros</option></select></div>
         <div class="form-group"><label for="filtroServicioAdmin">Servicio</label><select id="filtroServicioAdmin"><option value="">Todos</option><option value="Internet">Internet</option><option value="TV">TV</option><option value="Combo">Combo</option><option value="Otros">Otros</option></select></div>
         <div class="form-group"><label for="filtroZonaAdmin">Zona</label><select id="filtroZonaAdmin"><option value="">Todas las zonas</option></select></div>
         <div class="form-group"><label for="filtroDesdeAdmin">Fecha desde</label><input id="filtroDesdeAdmin" type="date"></div><div class="form-group"><label for="filtroHastaAdmin">Fecha hasta</label><input id="filtroHastaAdmin" type="date"></div>
@@ -120,6 +119,16 @@
     <section id="vista-configuracion" class="view hidden">
       <div class="page-heading"><div><span class="eyebrow">PERSONALIZACIÓN</span><h2>Configuración</h2><p>Personaliza el color del sistema y la identidad visual del reporte.</p></div></div>
       <div class="card form-card config-card"><div class="config-preview"><div id="logo-preview" class="logo-preview"><span>LOGO</span></div><div><h3>Identidad del reporte</h3><p>La imagen se mostrará en la parte superior de los reportes impresos y PDF.</p></div></div><form id="config-form" class="config-grid"><div class="form-group"><label for="config-color">Color principal</label><input id="config-color" type="color" value="#8b5cf6"></div><div class="form-group"><label for="config-logo">Imagen de empresa</label><input id="config-logo" type="file" accept="image/png,image/jpeg,image/webp"></div><div class="form-actions form-actions-wide"><button type="submit" class="btn-primary">Guardar configuración</button><button id="btn-remove-logo" type="button" class="btn-secondary">Quitar imagen</button></div></form></div>
+    </section>
+
+    <section id="vista-respaldo" class="view hidden">
+      <div class="page-heading"><div><span class="eyebrow">ADMINISTRACIÓN</span><h2>Respaldo de información</h2><p>Descarga una copia completa de todas las operaciones y asesores registrados, sin importar los filtros aplicados en otras secciones.</p></div></div>
+      <div class="card form-card">
+        <div class="card-heading"><div><span class="section-kicker">RESPALDO COMPLETO</span><h3>Copia de seguridad en Excel</h3></div></div>
+        <p class="muted">Genera un archivo <strong>.xlsx</strong> con dos hojas: <strong>Ventas</strong> (todas las operaciones registradas) y <strong>Perfiles</strong> (todos los asesores y administradores). Guarda este archivo en un lugar seguro periódicamente para poder restaurar la información en caso de pérdida.</p>
+        <div class="form-actions"><button id="btn-download-backup" class="btn-primary" type="button">⭳ Descargar respaldo completo</button></div>
+        <p id="backup-status" class="muted backup-status"></p>
+      </div>
     </section>
   </main>
 </div>
