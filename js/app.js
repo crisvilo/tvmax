@@ -24,6 +24,18 @@
     });
   });
 
+  function clearAdminFilters() {
+    [
+      "filtroAdminTexto", "filtroAsesorAdmin", "filtroEstadoAdmin",
+      "filtroTipoAdmin", "filtroServicioAdmin", "filtroZonaAdmin",
+      "filtroDesdeAdmin", "filtroHastaAdmin"
+    ].forEach(k => {
+      const el = id(k);
+      if (el) el.value = "";
+    });
+    renderAdmin();
+  }
+
   function bindEvents() {
     id("login-form").addEventListener("submit", login); id("register-form").addEventListener("submit", registerAdvisor); id("sale-form").addEventListener("submit", registerSale);
     id("btn-show-register").addEventListener("click", () => { id("auth-view").classList.add("hidden"); id("register-view").classList.remove("hidden"); });
@@ -90,6 +102,95 @@
     populateAdminFilters(); populateSurveyAdvisorFilter(); renderAdmin(); renderUsers(); updateAdminDashboard(); renderSurveyReport(); renderConfig();
   }
 
+  function renderUsers(){
+    const tbody=id("tabla-usuarios");
+    if(!tbody)return;
+    tbody.innerHTML=advisors.map(a=>{
+      const name=[a.nombre,a.apellido].filter(Boolean).join(" ")||"—";
+      return `<tr><td><strong>${escapeHTML(name)}</strong></td><td>${escapeHTML(a.email||"—")}</td><td>${escapeHTML(a.zona||"—")}</td><td>${Number(a.meta_mensual)||50}</td><td>${a.activo===false?'<span class="badge badge-disabled">Inhabilitado</span>':'<span class="badge badge-active">Activo</span>'}</td><td class="action-cell"><button class="btn-small" onclick="editAdvisor('${a.id}')">Editar</button><button class="btn-small" onclick="toggleAdvisor('${a.id}',${a.activo!==false})">${a.activo===false?"Habilitar":"Inhabilitar"}</button><button class="btn-delete" onclick="deleteAdvisor('${a.id}')">Eliminar</button></td></tr>`;
+    }).join("")||'<tr class="empty-row"><td colspan="6">No hay asesores registrados.</td></tr>';
+  }
+
+  async function saveAdminUser(e){
+    e.preventDefault();
+    const idUser=id("admin-user-id").value;
+    const body={nombre:value("admin-user-nombre"),apellido:value("admin-user-apellido"),documento:value("admin-user-documento"),telefono:value("admin-user-telefono"),zona:value("admin-user-zona"),email:value("admin-user-email"),meta_mensual:Math.max(1,Number(id("admin-user-meta").value)||50)};
+    if(!idUser){
+      const password=id("admin-user-password").value;
+      if(password.length<6){showToast("La contraseña debe tener mínimo 6 caracteres.",true);return;}
+      const result=await fetchAdminFunction("create",{...body,password});
+      if(result.error){showToast(result.error,true);return;}
+      showToast("Asesor creado correctamente.");resetUserForm();await loadAdminData();return;
+    }
+    const result=await fetchAdminFunction("update",{user_id:idUser,...body});
+    if(result.error){showToast(result.error,true);return;}
+    showToast("Asesor actualizado.");resetUserForm();await loadAdminData();
+  }
+
+  async function fetchAdminFunction(action,payload){
+    const {data:{session}}=await sbClient.auth.getSession();
+    if(!session)return{error:"Sesión no disponible."};
+    try{
+      const r=await fetch(`${SUPABASE_URL}/functions/v1/admin-users`,{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${session.access_token}`},body:JSON.stringify({action,...payload})});
+      const j=await r.json().catch(()=>({}));
+      return r.ok?{data:j}:{error:j.error||`Error ${r.status}`};
+    }catch(e){return{error:"No se pudo contactar la función de administración. Debes desplegar supabase/functions/admin-users."};}
+  }
+
+  function editAdvisor(uid){
+    const a=advisors.find(x=>x.id===uid);if(!a)return;
+    id("admin-user-id").value=a.id;
+    ["nombre","apellido","documento","telefono","zona","email"].forEach(k=>{const el=id(`admin-user-${k}`);if(el)el.value=a[k]||"";});
+    id("admin-user-meta").value=Number(a.meta_mensual)||50;
+    id("admin-user-password").value="";
+    id("btn-save-user").textContent="Actualizar asesor";
+    id("btn-cancel-user-edit").classList.remove("hidden");
+    id("vista-usuarios")?.scrollIntoView({behavior:"smooth"});
+  }
+
+  async function toggleAdvisor(uid,active){
+    const {error}=await sbClient.from("perfiles").update({activo:!active}).eq("id",uid);
+    if(error){showToast(error.message,true);return;}
+    showToast(active?"Asesor inhabilitado.":"Asesor habilitado.");await loadAdminData();
+  }
+
+  async function deleteAdvisor(uid){
+    const a=advisors.find(x=>x.id===uid);if(!a)return;
+    if(!confirm(`¿Eliminar a ${[a.nombre,a.apellido].filter(Boolean).join(" ")||a.email}? Solo se podrá eliminar si no tiene operaciones registradas.`))return;
+    const result=await fetchAdminFunction("delete",{user_id:uid});
+    if(result.error){showToast(result.error,true);return;}
+    showToast("Asesor eliminado.");await loadAdminData();
+  }
+
+  function resetUserForm(){
+    id("admin-user-form").reset();id("admin-user-id").value="";id("admin-user-meta").value=50;id("btn-save-user").textContent="Crear asesor";id("btn-cancel-user-edit").classList.add("hidden");
+  }
+
+  async function saveConfig(e){
+    e.preventDefault();
+    let logo=config.logo_url||"";
+    const file=id("config-logo").files[0];
+    if(file){if(file.size>2*1024*1024){showToast("La imagen debe pesar máximo 2 MB.",true);return;}logo=await fileToDataURL(file);}
+    const color=id("config-color").value;
+    const {error}=await sbClient.from("configuracion").upsert({id:1,color_principal:color,logo_url:logo,updated_by:currentUser.id},{onConflict:"id"});
+    if(error){showToast(error.message,true);return;}
+    config={color_principal:color,logo_url:logo};applyTheme();renderConfig();showToast("Configuración guardada.");
+  }
+
+  async function removeLogo(){
+    const {error}=await sbClient.from("configuracion").upsert({id:1,color_principal:config.color_principal,logo_url:"",updated_by:currentUser.id},{onConflict:"id"});
+    if(error){showToast(error.message,true);return;}
+    config.logo_url="";renderConfig();showToast("Imagen retirada del reporte.");
+  }
+
+  function renderConfig(){
+    const color=id("config-color"),preview=id("logo-preview");
+    if(color)color.value=config.color_principal||"#8b5cf6";
+    if(preview)preview.innerHTML=config.logo_url?`<img src="${config.logo_url}" alt="Logo de empresa">`:'<span>LOGO</span>';
+  }
+
+  function applyTheme(){document.documentElement.style.setProperty("--purple-primary",config.color_principal||"#8b5cf6");}
+
   async function registerSale(e){
     e.preventDefault(); if(!currentUser||!currentProfile){showToast("Tu sesión no está disponible.",true);return;}
     const row={asesor_id:currentUser.id,tipo_operacion:value("tipoOperacion"),codigo_cliente:value("codigoCliente"),servicio:value("servicio"),descripcion_servicio:value("descripcionServicio"),zona:value("zona"),fecha_venta:id("fechaVenta").value,estado_instalacion:"PENDIENTE",fecha_instalacion:null};
@@ -141,11 +242,9 @@
       <td>${escapeHTML(s.q3_tecnica||"—")}</td>
       <td>${escapeHTML(s.q4_administrativa||"—")}</td>
       <td>${escapeHTML(s.q5_agilidad||"—")}</td>
-      <td>${escapeHTML(s.observacion_q5||"—")}</td>
       <td>${escapeHTML(s.q6_recomendaria||"—")}</td>
-      <td>${escapeHTML(s.observacion_q6||"—")}</td>
       <td>${escapeHTML(s.q7_recomendacion||"—")}</td>
-    </tr>`).join(""):`<tr class="empty-row"><td colspan="10">Aún no has registrado encuestas.</td></tr>`;
+    </tr>`).join(""):`<tr class="empty-row"><td colspan="8">Aún no has registrado encuestas.</td></tr>`;
   }
 
   async function setInstallation(id,state){
@@ -269,21 +368,6 @@
     }catch(e){console.error(e);showToast("No fue posible generar el Excel de encuestas.",true);}
   }
 
-  function renderUsers(){const tbody=id("tabla-usuarios");if(!tbody)return;tbody.innerHTML=advisors.map(a=>{const name=[a.nombre,a.apellido].filter(Boolean).join(" ")||"—";return `<tr><td><strong>${escapeHTML(name)}</strong></td><td>${escapeHTML(a.email||"—")}</td><td>${escapeHTML(a.zona||"—")}</td><td>${Number(a.meta_mensual)||50}</td><td>${a.activo===false?'<span class="badge badge-disabled">Inhabilitado</span>':'<span class="badge badge-active">Activo</span>'}</td><td class="action-cell"><button class="btn-small" onclick="editAdvisor('${a.id}')">Editar</button><button class="btn-small" onclick="toggleAdvisor('${a.id}',${a.activo!==false})">${a.activo===false?"Habilitar":"Inhabilitar"}</button><button class="btn-delete" onclick="deleteAdvisor('${a.id}')">Eliminar</button></td></tr>`;}).join("")||'<tr class="empty-row"><td colspan="6">No hay asesores registrados.</td></tr>';}
-
-  async function saveAdminUser(e){e.preventDefault();const idUser=id("admin-user-id").value;const body={nombre:value("admin-user-nombre"),apellido:value("admin-user-apellido"),documento:value("admin-user-documento"),telefono:value("admin-user-telefono"),zona:value("admin-user-zona"),email:value("admin-user-email"),meta_mensual:Math.max(1,Number(id("admin-user-meta").value)||50)};if(!idUser){const password=id("admin-user-password").value;if(password.length<6){showToast("La contraseña debe tener mínimo 6 caracteres.",true);return;}const {data:{session}}=await sbClient.auth.getSession();if(!session){showToast("Sesión no disponible.",true);return;}const result=await fetchAdminFunction("create",{...body,password});if(result.error){showToast(result.error,true);return;}showToast("Asesor creado correctamente.");resetUserForm();await loadAdminData();return;}const result=await fetchAdminFunction("update",{user_id:idUser,...body});if(result.error){showToast(result.error,true);return;}showToast("Asesor actualizado.");resetUserForm();await loadAdminData();}
-  async function fetchAdminFunction(action,payload){const {data:{session}}=await sbClient.auth.getSession();if(!session)return{error:"Sesión no disponible."};try{const r=await fetch(`${SUPABASE_URL}/functions/v1/admin-users`,{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${session.access_token}`},body:JSON.stringify({action,...payload})});const j=await r.json().catch(()=>({}));return r.ok?{data:j}:{error:j.error||`Error ${r.status}`};}catch(e){return{error:"No se pudo contactar la función de administración. Debes desplegar supabase/functions/admin-users."};}}
-  function editAdvisor(uid){const a=advisors.find(x=>x.id===uid);if(!a)return;id("admin-user-id").value=a.id;["nombre","apellido","documento","telefono","zona","email"].forEach(k=>id(`admin-user-${k}`).value=a[k]||"");id("admin-user-meta").value=Number(a.meta_mensual)||50;id("admin-user-password").value="";id("btn-save-user").textContent="Actualizar asesor";id("btn-cancel-user-edit").classList.remove("hidden");document.getElementById("vista-usuarios").scrollIntoView({behavior:"smooth"});}
-  async function toggleAdvisor(uid,active){const {error}=await sbClient.from("perfiles").update({activo:!active}).eq("id",uid);if(error){showToast(error.message,true);return;}showToast(active?"Asesor inhabilitado.":"Asesor habilitado.");await loadAdminData();}
-  async function deleteAdvisor(uid){const a=advisors.find(x=>x.id===uid);if(!a)return;if(!confirm(`¿Eliminar a ${[a.nombre,a.apellido].filter(Boolean).join(" ")||a.email}? Solo se podrá eliminar si no tiene operaciones registradas.`))return;const result=await fetchAdminFunction("delete",{user_id:uid});if(result.error){showToast(result.error,true);return;}showToast("Asesor eliminado.");await loadAdminData();}
-  function resetUserForm(){id("admin-user-form").reset();id("admin-user-id").value="";id("admin-user-meta").value=50;id("btn-save-user").textContent="Crear asesor";id("btn-cancel-user-edit").classList.add("hidden");}
-
-  async function saveConfig(e){e.preventDefault();let logo=config.logo_url||"";const file=id("config-logo").files[0];if(file){if(file.size>2*1024*1024){showToast("La imagen debe pesar máximo 2 MB.",true);return;}logo=await fileToDataURL(file);}const color=id("config-color").value;const {error}=await sbClient.from("configuracion").upsert({id:1,color_principal:color,logo_url:logo,updated_by:currentUser.id},{onConflict:"id"});if(error){showToast(error.message,true);return;}config={color_principal:color,logo_url:logo};applyTheme();renderConfig();showToast("Configuración guardada.");}
-  async function removeLogo(){const {error}=await sbClient.from("configuracion").upsert({id:1,color_principal:config.color_principal,logo_url:"",updated_by:currentUser.id},{onConflict:"id"});if(error){showToast(error.message,true);return;}config.logo_url="";renderConfig();showToast("Imagen retirada del reporte.");}
-  function renderConfig(){id("config-color").value=config.color_principal||"#8b5cf6";id("logo-preview").innerHTML=config.logo_url?`<img src="${config.logo_url}" alt="Logo de empresa">`:'<span>LOGO</span>';}
-  function applyTheme(){document.documentElement.style.setProperty("--purple-primary",config.color_principal||"#8b5cf6");}
-  function clearAdminFilters(){["filtroAdminTexto","filtroAsesorAdmin","filtroEstadoAdmin","filtroTipoAdmin","filtroServicioAdmin","filtroZonaAdmin","filtroDesdeAdmin","filtroHastaAdmin"].forEach(x=>id(x).value="");renderAdmin();}
-
   function getCurrentMonthKey(){
     const now=new Date();
     return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
@@ -373,7 +457,7 @@
   function serviceBadge(s){return `<span class="badge badge-service">${escapeHTML(s||"Otros")}</span>`;}
   function formatDate(d){if(!d)return "—";const p=d.split("-");return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:escapeHTML(d);}
   function setTodayDefault(){const x=id("fechaVenta");if(x&&!x.value)x.value=getTodayISO();}function getTodayISO(){const n=new Date(),o=n.getTimezoneOffset(),l=new Date(n.getTime()-o*60000);return l.toISOString().slice(0,10);}
-  function value(x){return id(x).value.trim();}function id(x){return document.getElementById(x);}function setText(x,v){if(id(x))id(x).textContent=v;}
+  function value(x){const el=id(x);return el?.value?.trim?.()||"";}function id(x){return document.getElementById(x);}function setText(x,v){if(id(x))id(x).textContent=v;}
   function escapeHTML(v){return String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");}
   async function downloadBackup(){
     const btn=id("btn-download-backup"),status=id("backup-status");
