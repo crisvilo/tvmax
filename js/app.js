@@ -12,14 +12,14 @@
   const sbClient = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
   const SERVICES = ["Internet", "TV", "Combo", "Otros"];
   const STATES = ["PENDIENTE", "REALIZADA", "CANCELADA"];
-  let currentUser = null, currentProfile = null, sales = [], advisors = [], config = { color_principal: "#8b5cf6", logo_url: "" };
+  let currentUser = null, currentProfile = null, sales = [], advisors = [], surveys = [], config = { color_principal: "#8b5cf6", logo_url: "" };
 
   document.addEventListener("DOMContentLoaded", async () => {
     bindEvents(); setTodayDefault(); showAuthView(); applyTheme();
     const { data: { session } } = await sbClient.auth.getSession();
     if (session?.user) await initializeSession(session.user);
     sbClient.auth.onAuthStateChange(async (event, session) => {
-      if (event === "SIGNED_OUT") { currentUser = null; currentProfile = null; sales = []; advisors = []; showAuthView(); return; }
+      if (event === "SIGNED_OUT") { currentUser = null; currentProfile = null; sales = []; advisors = []; surveys = []; showAuthView(); return; }
       if (session?.user && event !== "INITIAL_SESSION") await initializeSession(session.user);
     });
   });
@@ -35,6 +35,13 @@
     id("admin-user-form").addEventListener("submit", saveAdminUser); id("btn-cancel-user-edit").addEventListener("click", resetUserForm);
     id("config-form").addEventListener("submit", saveConfig); id("btn-remove-logo").addEventListener("click", removeLogo);
     id("btn-asesor-report").addEventListener("click", previewAdvisorReport); id("btn-asesor-print").addEventListener("click", printAdvisorReport); id("btn-asesor-pdf").addEventListener("click", downloadAdvisorPDF);
+    id("survey-form").addEventListener("submit", registerSurvey);
+    ["filtroEncuestaTexto","filtroEncuestaAsesor","filtroEncuestaQ6","filtroEncuestaDesde","filtroEncuestaHasta"].forEach(x=>{id(x).addEventListener("input",renderSurveyReport);id(x).addEventListener("change",renderSurveyReport);});
+    id("btn-clear-survey-filters").addEventListener("click",clearSurveyFilters);
+    id("btn-preview-survey-report").addEventListener("click",()=>previewReport(buildSurveyReportHTML));
+    id("btn-print-survey-report").addEventListener("click",()=>printReport(buildSurveyReportHTML));
+    id("btn-pdf-survey-report").addEventListener("click",()=>downloadPDF(buildSurveyReportHTML,"reporte-encuestas"));
+    id("btn-excel-survey-report").addEventListener("click",downloadSurveyExcel);
     id("btn-download-backup").addEventListener("click", downloadBackup);
   }
 
@@ -43,7 +50,7 @@
   async function registerAdvisor(e) {
     e.preventDefault(); const password=id("reg-password").value, confirm=id("reg-password-confirm").value;
     if(password!==confirm){showToast("Las contraseñas no coinciden.",true);return;} if(password.length<6){showToast("La contraseña debe tener mínimo 6 caracteres.",true);return;}
-    const payload={nombre:value("reg-nombre"),apellido:value("reg-apellido"),documento:value("reg-documento"),telefono:value("reg-telefono"),zona:value("reg-zona") ,rol:"asesor"};
+    const payload={nombre:value("reg-nombre"),apellido:value("reg-apellido"),documento:value("reg-documento"),telefono:value("reg-telefono"),zona:"",rol:"asesor"};
     setButtonBusy(e.submitter,true,"Registrando..."); const {data,error}=await sbClient.auth.signUp({email:value("reg-email"),password,options:{data:payload}}); setButtonBusy(e.submitter,false,"Registrar asesor");
     if(error){showToast(authError(error),true);return;} id("register-form").reset(); if(data.session){showToast("Asesor registrado correctamente.");await initializeSession(data.user);}else{showToast("Registro creado. Revisa el correo para confirmar la cuenta.");showAuthView();}
   }
@@ -59,15 +66,28 @@
 
   async function loadConfig(){const {data}=await sbClient.from("configuracion").select("color_principal,logo_url").eq("id",1).maybeSingle(); if(data) config=data; applyTheme(); renderConfig();}
 
-  async function loadAdvisorData(){const {data,error}=await sbClient.from("ventas").select("*").eq("asesor_id",currentUser.id).order("fecha_venta",{ascending:false}).order("id",{ascending:false}); if(error){console.error(error);showToast("No fue posible cargar tus operaciones.",true);return;} sales=data||[]; applyAdvisorProfile();renderAdvisorTable();updateAdvisorDashboard();}
+  async function loadAdvisorData(){
+    const [sr,qr]=await Promise.all([
+      sbClient.from("ventas").select("*").eq("asesor_id",currentUser.id).order("fecha_venta",{ascending:false}).order("id",{ascending:false}),
+      sbClient.from("encuestas").select("*").eq("asesor_id",currentUser.id).order("fecha_encuesta",{ascending:false}).order("id",{ascending:false})
+    ]);
+    if(sr.error){console.error(sr.error);showToast("No fue posible cargar tus operaciones.",true);return;}
+    sales=sr.data||[]; surveys=qr.error?[]:(qr.data||[]);
+    if(qr.error) console.warn("No fue posible cargar las encuestas. Ejecuta el SQL de encuestas.",qr.error);
+    applyAdvisorProfile();renderAdvisorTable();updateAdvisorDashboard();renderAdvisorSurveys();
+  }
 
   async function loadAdminData(){
-    const [sr,ar]=await Promise.all([
+    const [sr,ar,qr]=await Promise.all([
       sbClient.from("ventas").select(`*, perfiles:asesor_id (id,nombre,apellido,zona,email,meta_mensual,activo)`).order("fecha_venta",{ascending:false}).order("id",{ascending:false}),
-      sbClient.from("perfiles").select("*").eq("rol","asesor").order("nombre",{ascending:true}).order("apellido",{ascending:true})
+      sbClient.from("perfiles").select("*").eq("rol","asesor").order("nombre",{ascending:true}).order("apellido",{ascending:true}),
+      sbClient.from("encuestas").select(`*, perfiles:asesor_id (id,nombre,apellido,email)`).order("fecha_encuesta",{ascending:false}).order("id",{ascending:false})
     ]);
-    if(sr.error){console.error(sr.error);showToast("No fue posible cargar las operaciones.",true);return;} if(ar.error){console.error(ar.error);showToast("No fue posible cargar los asesores.",true);return;}
-    sales=sr.data||[]; advisors=ar.data||[]; populateAdminFilters(); renderAdmin(); renderUsers(); updateAdminDashboard(); renderConfig();
+    if(sr.error){console.error(sr.error);showToast("No fue posible cargar las operaciones.",true);return;}
+    if(ar.error){console.error(ar.error);showToast("No fue posible cargar los asesores.",true);return;}
+    sales=sr.data||[]; advisors=ar.data||[]; surveys=qr.error?[]:(qr.data||[]);
+    if(qr.error) console.warn("No fue posible cargar las encuestas. Ejecuta el SQL de encuestas.",qr.error);
+    populateAdminFilters(); populateSurveyAdvisorFilter(); renderAdmin(); renderUsers(); updateAdminDashboard(); renderSurveyReport(); renderConfig();
   }
 
   async function registerSale(e){
@@ -76,6 +96,56 @@
     if(!row.tipo_operacion||!row.codigo_cliente||!row.servicio||!row.descripcion_servicio||!row.zona||!row.fecha_venta){showToast("Completa todos los campos obligatorios.",true);return;}
     const {data,error}=await sbClient.from("ventas").insert(row).select().single(); if(error){console.error(error);showToast(error.message||"No fue posible registrar la operación.",true);return;}
     e.target.reset();applyAdvisorProfile();setTodayDefault();sales.unshift(data);renderAdvisorTable();updateAdvisorDashboard();showToast(`${row.tipo_operacion} registrada correctamente.`);
+  }
+
+
+  async function registerSurvey(e){
+    e.preventDefault();
+    if(!currentUser||!["asesor","administrador"].includes(currentProfile?.rol)){showToast("No tienes permisos para registrar encuestas.",true);return;}
+    const row={
+      asesor_id:currentUser.id,
+      codigo_nombre_usuario:value("enc-codigo-nombre"),
+      q2_servicio:document.querySelector('input[name="enc-q2"]:checked')?.value||"",
+      observacion_q2:value("enc-obs2"),
+      q3_tecnica:document.querySelector('input[name="enc-q3"]:checked')?.value||"",
+      observacion_q3:value("enc-obs3"),
+      q4_administrativa:document.querySelector('input[name="enc-q4"]:checked')?.value||"",
+      observacion_q4:value("enc-obs4"),
+      q5_agilidad:document.querySelector('input[name="enc-q5"]:checked')?.value||"",
+      observacion_q5:value("enc-obs5"),
+      q6_recomendaria:document.querySelector('input[name="enc-q6"]:checked')?.value||"",
+      observacion_q6:value("enc-obs6"),
+      q7_recomendacion:value("enc-q7"),
+      fecha_encuesta:getTodayISO()
+    };
+    if(!row.codigo_nombre_usuario||!row.q2_servicio||!row.q3_tecnica||!row.q4_administrativa||!row.q5_agilidad||!row.q6_recomendaria){
+      showToast("Completa las preguntas obligatorias de la encuesta.",true);return;
+    }
+    const {data,error}=await sbClient.from("encuestas").insert(row).select("*").single();
+    if(error){console.error(error);showToast(error.message||"No fue posible guardar la encuesta.",true);return;}
+    e.target.reset();
+    surveys.unshift(data);
+    renderAdvisorSurveys();
+    if(currentProfile?.rol==="administrador") renderSurveyReport();
+    showToast("Encuesta guardada correctamente.");
+  }
+
+  function renderAdvisorSurveys(){
+    const tabla=id("tabla-encuestas-asesor"); if(!tabla)return;
+    const mine=surveys.filter(s=>s.asesor_id===currentUser?.id);
+    setText("advisor-survey-count",`${mine.length} encuesta${mine.length===1?"":"s"}`);
+    tabla.innerHTML=mine.length?mine.map(s=>`<tr>
+      <td>${formatDate(s.fecha_encuesta)}</td>
+      <td>${escapeHTML(s.codigo_nombre_usuario||"—")}</td>
+      <td>${escapeHTML(s.q2_servicio||"—")}</td>
+      <td>${escapeHTML(s.q3_tecnica||"—")}</td>
+      <td>${escapeHTML(s.q4_administrativa||"—")}</td>
+      <td>${escapeHTML(s.q5_agilidad||"—")}</td>
+      <td>${escapeHTML(s.observacion_q5||"—")}</td>
+      <td>${escapeHTML(s.q6_recomendaria||"—")}</td>
+      <td>${escapeHTML(s.observacion_q6||"—")}</td>
+      <td>${escapeHTML(s.q7_recomendacion||"—")}</td>
+    </tr>`).join(""):`<tr class="empty-row"><td colspan="10">Aún no has registrado encuestas.</td></tr>`;
   }
 
   async function setInstallation(id,state){
@@ -90,10 +160,10 @@
 
   async function deleteSale(id){if(!confirm("¿Eliminar definitivamente esta operación? Esta acción no se puede deshacer."))return;const {error}=await sbClient.from("ventas").delete().eq("id",id);if(error){showToast("No fue posible eliminar la venta. Verifica las políticas RLS.",true);return;}sales=sales.filter(x=>x.id!==id);renderAdmin();updateAdminDashboard();showToast("Operación eliminada.");}
 
-  function buildSidebar(){const nav=id("sidebar-nav");const admin=currentProfile?.rol==="administrador";const items=admin?[ ["admin-dashboard","▦","Dashboard"],["vista-admin","▤","Operaciones"],["vista-usuarios","♙","Usuarios"],["vista-configuracion","⚙","Configuración"],["vista-respaldo","⭳","Respaldo"] ]:[["vista-asesor","▦","Mi dashboard"],["vista-asesor","＋","Registrar operación"],["vista-asesor","▤","Mis operaciones"]];nav.innerHTML=items.map(([target,icon,label])=>`<button class="nav-item" type="button" data-target="${target}" data-anchor="${target==='vista-asesor'?label:''}"><span>${icon}</span>${label}</button>`).join("");nav.querySelectorAll(".nav-item").forEach(b=>b.addEventListener("click",()=>{showView(b.dataset.target);if(b.dataset.anchor==="Registrar operación")id("asesor-form-section").scrollIntoView({behavior:"smooth"});if(b.dataset.anchor==="Mis operaciones")document.querySelector("#vista-asesor .table-card").scrollIntoView({behavior:"smooth"});closeSidebar();}));}
+  function buildSidebar(){const nav=id("sidebar-nav");const admin=currentProfile?.rol==="administrador";const items=admin?[ ["admin-dashboard","▦","Dashboard"],["vista-admin","▤","Operaciones"],["vista-encuestas","☑","Encuesta"],["vista-reporte-encuestas","▤","Reporte de encuestas"],["vista-usuarios","♙","Usuarios"],["vista-configuracion","⚙","Configuración"],["vista-respaldo","⭳","Respaldo"] ]:[["vista-asesor","▦","Mi dashboard"],["vista-asesor","＋","Registrar operación"],["vista-asesor","▤","Mis operaciones"],["vista-encuestas","☑","Encuestas"]];nav.innerHTML=items.map(([target,icon,label])=>`<button class="nav-item" type="button" data-target="${target}" data-anchor="${target==='vista-asesor'?label:''}"><span>${icon}</span>${label}</button>`).join("");nav.querySelectorAll(".nav-item").forEach(b=>b.addEventListener("click",()=>{showView(b.dataset.target);if(b.dataset.anchor==="Registrar operación")id("asesor-form-section").scrollIntoView({behavior:"smooth"});if(b.dataset.anchor==="Mis operaciones")document.querySelector("#vista-asesor .table-card").scrollIntoView({behavior:"smooth"});if(b.dataset.target==="vista-encuestas")renderAdvisorSurveys();closeSidebar();}));}
   function closeSidebar(){id("sidebar").classList.remove("open");}
 
-  function updateSessionHeader(){const name=[currentProfile?.nombre,currentProfile?.apellido].filter(Boolean).join(" ")||"Usuario", role=currentProfile?.rol==="administrador"?"Administrador":"Asesor";id("user-name").textContent=name;id("user-role").textContent=role;id("user-avatar").textContent=name.charAt(0).toUpperCase();id("sidebar-user-name").textContent=name;id("sidebar-user-role").textContent=role;id("session-area").classList.remove("hidden");id("btn-menu").classList.remove("hidden");id("sidebar").classList.remove("hidden");}
+  function updateSessionHeader(){const name=[currentProfile?.nombre,currentProfile?.apellido].filter(Boolean).join(" ")||"Usuario", role=currentProfile?.rol==="administrador"?"Administrador":"Asesor";id("user-name").textContent=name;id("user-role").textContent=role;id("user-avatar").textContent=name.charAt(0).toUpperCase();id("sidebar-user-name").textContent=name;id("sidebar-user-role").textContent=role;id("session-area").classList.remove("hidden");id("btn-menu").classList.remove("hidden");id("sidebar").classList.remove("hidden");if(id("survey-mode-description"))id("survey-mode-description").textContent=currentProfile?.rol==="administrador"?"Diligencia una encuesta de satisfacción como mecanismo de control y seguimiento de la atención al usuario.":"Diligencia la encuesta utilizando exactamente las preguntas del formulario de satisfacción de Grupo TV Max.";}
   function applyAdvisorProfile(){const zona=currentProfile?.zona||"";id("zona").value=zona;id("asesor-zone-badge").textContent=`Zona: ${zona||"Sin asignar"}`;id("asesor-welcome").textContent=`Registra operaciones y consulta tu avance. Zona asignada: ${zona||"sin asignar"}.`;}
 
   function renderAdvisorTable(){const tabla=id("tabla-asesor"),filtro=value("filtroAsesor").toLowerCase(),filtered=sales.filter(s=>[s.tipo_operacion,s.codigo_cliente,s.servicio,s.descripcion_servicio,s.zona,s.fecha_venta,s.estado_instalacion].join(" ").toLowerCase().includes(filtro));tabla.innerHTML=filtered.length?filtered.map(s=>`<tr><td>#${s.id}</td><td>${operationBadge(s.tipo_operacion)}</td><td>${escapeHTML(s.codigo_cliente)}</td><td>${serviceBadge(s.servicio)}</td><td>${escapeHTML(s.descripcion_servicio)}</td><td>${escapeHTML(s.zona)}</td><td>${formatDate(s.fecha_venta)}</td><td>${installationStatus(s.estado_instalacion)}</td><td>${formatDate(s.fecha_instalacion)}</td></tr>`).join(""):`<tr class="empty-row"><td colspan="9">${sales.length?"No se encontraron operaciones.":"No hay operaciones registradas."}</td></tr>`;updateAdvisorStats();}
@@ -104,11 +174,104 @@
   function getFilteredAdminSales(){const text=value("filtroAdminTexto").toLowerCase(),advisor=id("filtroAsesorAdmin").value,state=id("filtroEstadoAdmin").value,type=id("filtroTipoAdmin").value,service=id("filtroServicioAdmin").value,zone=id("filtroZonaAdmin").value,from=id("filtroDesdeAdmin").value,to=id("filtroHastaAdmin").value;return sales.filter(s=>{const a=s.perfiles||{},search=[a.nombre,a.apellido,a.email,s.tipo_operacion,s.codigo_cliente,s.servicio,s.descripcion_servicio,s.zona,s.fecha_venta].join(" ").toLowerCase();return(!text||search.includes(text))&&(!advisor||s.asesor_id===advisor)&&(!state||s.estado_instalacion===state)&&(!type||s.tipo_operacion===type)&&(!service||s.servicio===service)&&(!zone||s.zona===zone)&&(!from||s.fecha_venta>=from)&&(!to||s.fecha_venta<=to);});}
   function populateAdminFilters(){const as=id("filtroAsesorAdmin"),zone=id("filtroZonaAdmin"),aVal=as.value,zVal=zone.value;as.innerHTML='<option value="">Todos los asesores</option>'+advisors.map(a=>`<option value="${a.id}">${escapeHTML([a.nombre,a.apellido].filter(Boolean).join(" ")||a.email)}</option>`).join("");as.value=aVal;const zones=[...new Set(sales.map(s=>s.zona).filter(Boolean))].sort((a,b)=>a.localeCompare(b));zone.innerHTML='<option value="">Todas las zonas</option>'+zones.map(z=>`<option>${escapeHTML(z)}</option>`).join("");zone.value=zVal;}
 
-  function updateAdminDashboard(){const total=sales.length,ventas=sales.filter(s=>s.tipo_operacion==="Venta").length,p=sales.filter(s=>s.estado_instalacion==="PENDIENTE").length,r=sales.filter(s=>s.estado_instalacion==="REALIZADA").length,c=sales.filter(s=>s.estado_instalacion==="CANCELADA").length;setText("dash-total",total);setText("dash-ventas",ventas);setText("dash-pendientes",p);setText("dash-realizadas",r);setText("dash-canceladas",c);const now=new Date(),ym=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`,monthly=sales.filter(s=>s.fecha_venta?.startsWith(ym)&&s.tipo_operacion==="Venta");id("dash-goals-list").innerHTML=advisors.map(a=>{const n=[a.nombre,a.apellido].filter(Boolean).join(" ")||a.email,count=monthly.filter(s=>s.asesor_id===a.id).length,g=Math.max(1,Number(a.meta_mensual)||50),pct=Math.min(100,Math.round(count/g*100));return `<div class="goal-list-row"><div><strong>${escapeHTML(n)}</strong><small>${count} / ${g} ventas</small></div><div class="mini-progress"><span style="width:${pct}%"></span></div><b>${pct}%</b></div>`;}).join("")||'<p class="muted">No hay asesores registrados.</p>';const counts=SERVICES.map(s=>({s,n:monthly.filter(x=>x.servicio===s).length}));const max=Math.max(1,...counts.map(x=>x.n));id("dash-services-list").innerHTML=counts.map(x=>`<div class="mini-bar-row"><span>${x.s}</span><div><i style="width:${x.n/max*100}%"></i></div><strong>${x.n}</strong></div>`).join("");}
+  function surveyReportPeople(){
+    const people=[...advisors];
+    if(currentProfile?.rol==="administrador" && currentProfile?.id && !people.some(p=>p.id===currentProfile.id)){
+      people.push({...currentProfile});
+    }
+    return people;
+  }
+
+  function populateSurveyAdvisorFilter(){
+    const el=id("filtroEncuestaAsesor"); if(!el)return;
+    const selected=el.value;
+    el.innerHTML='<option value="">Todos</option>'+surveyReportPeople().map(a=>`<option value="${a.id}">${escapeHTML([a.nombre,a.apellido].filter(Boolean).join(" ")||a.email||(a.rol==="administrador"?"Administrador":"Asesor"))}${a.rol==="administrador"?" · Administrador":""}</option>`).join("");
+    el.value=selected;
+  }
+
+  function getFilteredSurveys(){
+    const text=value("filtroEncuestaTexto").toLowerCase();
+    const advisor=value("filtroEncuestaAsesor");
+    const recommend=value("filtroEncuestaQ6");
+    const from=value("filtroEncuestaDesde");
+    const to=value("filtroEncuestaHasta");
+    return surveys.filter(s=>{
+      const a=s.perfiles||{};
+      const name=[a.nombre,a.apellido].filter(Boolean).join(" ");
+      const matchesText=!text||[s.codigo_nombre_usuario,s.q2_servicio,s.q3_tecnica,s.q4_administrativa,s.q5_agilidad,s.q6_recomendaria,s.q7_recomendacion,name].join(" ").toLowerCase().includes(text);
+      const matchesAdvisor=!advisor||s.asesor_id===advisor;
+      const matchesRecommend=!recommend||s.q6_recomendaria===recommend;
+      const matchesFrom=!from||String(s.fecha_encuesta||"")>=from;
+      const matchesTo=!to||String(s.fecha_encuesta||"")<=to;
+      return matchesText&&matchesAdvisor&&matchesRecommend&&matchesFrom&&matchesTo;
+    });
+  }
+
+  function renderSurveyReport(){
+    const list=getFilteredSurveys(),tabla=id("tabla-reporte-encuestas"); if(!tabla)return;
+    setText("survey-result-count",`${list.length} resultado${list.length===1?"":"s"}`);
+    setText("survey-total-count",list.length);
+    const yes=list.filter(s=>s.q6_recomendaria==="SI").length;
+    setText("survey-recommend-percent",`${list.length?Math.round(yes/list.length*100):0}%`);
+    const advisorIds=new Set(list.map(s=>s.asesor_id).filter(Boolean));
+    setText("survey-advisor-count",advisorIds.size);
+    const reportPeople=surveyReportPeople();
+    id("survey-advisor-chart").innerHTML=reportPeople.length?reportPeople.map(a=>{
+      const rows=list.filter(s=>s.asesor_id===a.id), yesA=rows.filter(s=>s.q6_recomendaria==="SI").length;
+      const pct=rows.length?Math.round(yesA/rows.length*100):0;
+      const name=[a.nombre,a.apellido].filter(Boolean).join(" ")||a.email||"Asesor";
+      return `<div class="survey-advisor-row"><div class="survey-advisor-head"><strong>${escapeHTML(name)}</strong><span>${rows.length} encuesta${rows.length===1?"":"s"} · ${pct}% recomienda</span></div><div class="survey-advisor-track"><span style="width:${pct}%"></span></div></div>`;
+    }).join(""):'<p class="muted">No hay asesores registrados.</p>';
+    tabla.innerHTML=list.length?list.map(s=>{
+      const a=s.perfiles||{},name=[a.nombre,a.apellido].filter(Boolean).join(" ")||a.email||"—";
+      return `<tr><td>${formatDate(s.fecha_encuesta)}</td><td>${escapeHTML(name)}</td><td>${escapeHTML(s.codigo_nombre_usuario||"—")}</td><td>${escapeHTML(s.q2_servicio||"—")}</td><td>${escapeHTML(s.observacion_q2||"—")}</td><td>${escapeHTML(s.q3_tecnica||"—")}</td><td>${escapeHTML(s.observacion_q3||"—")}</td><td>${escapeHTML(s.q4_administrativa||"—")}</td><td>${escapeHTML(s.observacion_q4||"—")}</td><td>${escapeHTML(s.q5_agilidad||"—")}</td><td>${escapeHTML(s.q6_recomendaria||"—")}</td><td>${escapeHTML(s.q7_recomendacion||"—")}</td></tr>`;
+    }).join(""):`<tr class="empty-row"><td colspan="12">${surveys.length?"No se encontraron encuestas con los filtros seleccionados.":"No hay encuestas registradas."}</td></tr>`;
+  }
+
+  function clearSurveyFilters(){
+    ["filtroEncuestaTexto","filtroEncuestaAsesor","filtroEncuestaQ6","filtroEncuestaDesde","filtroEncuestaHasta"].forEach(x=>{if(id(x))id(x).value="";});
+    renderSurveyReport();
+  }
+
+  function buildSurveyReportHTML(){
+    const list=getFilteredSurveys(),total=list.length,yes=list.filter(s=>s.q6_recomendaria==="SI").length,no=list.filter(s=>s.q6_recomendaria==="NO").length;
+    const pct=n=>total?Math.round(n/total*100):0;
+    const advisorRows=surveyReportPeople().map(a=>{
+      const rows=list.filter(s=>s.asesor_id===a.id), y=rows.filter(s=>s.q6_recomendaria==="SI").length, p=rows.length?Math.round(y/rows.length*100):0;
+      if(!rows.length)return "";
+      const name=[a.nombre,a.apellido].filter(Boolean).join(" ")||a.email||"Asesor";
+      return `<tr><td>${escapeHTML(name)}</td><td>${rows.length}</td><td>${y}</td><td>${rows.length-y}</td><td>${p}%</td></tr>`;
+    }).join("")||'<tr><td colspan="5" class="print-empty-row">No hay datos.</td></tr>';
+    const detail=list.map(s=>{
+      const a=s.perfiles||{},name=[a.nombre,a.apellido].filter(Boolean).join(" ")||a.email||"—";
+      return `<tr><td>${formatDate(s.fecha_encuesta)}</td><td>${escapeHTML(name)}</td><td>${escapeHTML(s.codigo_nombre_usuario||"—")}</td><td>${escapeHTML(s.q2_servicio||"—")}</td><td>${escapeHTML(s.observacion_q2||"—")}</td><td>${escapeHTML(s.q3_tecnica||"—")}</td><td>${escapeHTML(s.observacion_q3||"—")}</td><td>${escapeHTML(s.q4_administrativa||"—")}</td><td>${escapeHTML(s.observacion_q4||"—")}</td><td>${escapeHTML(s.q5_agilidad||"—")}</td><td>${escapeHTML(s.q6_recomendaria||"—")}</td><td>${escapeHTML(s.q7_recomendacion||"—")}</td></tr>`;
+    }).join("")||'<tr><td colspan="12" class="print-empty-row">No hay encuestas para mostrar.</td></tr>';
+    const dist=(field,opts)=>opts.map(o=>`<tr><td>${escapeHTML(o)}</td><td>${list.filter(s=>s[field]===o).length}</td><td>${pct(list.filter(s=>s[field]===o).length)}%</td></tr>`).join("");
+    const period=value("filtroEncuestaDesde")||value("filtroEncuestaHasta")?`${value("filtroEncuestaDesde")?formatDate(value("filtroEncuestaDesde")):"Inicio"} – ${value("filtroEncuestaHasta")?formatDate(value("filtroEncuestaHasta")):"Actual"}`:"Todos los periodos";
+    return `<div class="print-report-sheet survey-print-sheet">${config.logo_url?`<div class="print-logo"><img src="${config.logo_url}" alt="Logo"></div>`:""}<div class="print-header"><div><span class="print-kicker">REPORTE DE ENCUESTAS</span><h1>Satisfacción de usuarios</h1><p>Periodo: <strong>${escapeHTML(period)}</strong></p></div><div class="print-generated">Generado: ${new Date().toLocaleString("es-CO")}</div></div><div class="print-summary"><div class="print-summary-card"><span>Total encuestas</span><strong>${total}</strong></div><div class="print-summary-card"><span>Recomiendan</span><strong>${yes} (${pct(yes)}%)</strong></div><div class="print-summary-card"><span>No recomiendan</span><strong>${no} (${pct(no)}%)</strong></div></div><section class="print-table-section"><div class="print-table-title"><div><span class="print-kicker">POR ASESOR</span><h2>Encuestas registradas por asesor</h2></div></div><div class="print-table-scroll"><table><thead><tr><th>Asesor</th><th>Total</th><th>Sí</th><th>No</th><th>% Sí</th></tr></thead><tbody>${advisorRows}</tbody></table></div></section><section class="print-table-section"><div class="print-table-title"><div><span class="print-kicker">DISTRIBUCIÓN</span><h2>Respuestas por pregunta</h2></div></div><div class="survey-print-distributions"><div><h3>Pregunta 2 · Servicio</h3><table><thead><tr><th>Respuesta</th><th>Cantidad</th><th>%</th></tr></thead><tbody>${dist("q2_servicio",["BUENO","EXCELENTE","MALO","MUY MALO","REGULAR"])}</tbody></table></div><div><h3>Pregunta 3 · Área técnica</h3><table><thead><tr><th>Respuesta</th><th>Cantidad</th><th>%</th></tr></thead><tbody>${dist("q3_tecnica",["BUENO","EXCELENTE","MALO","MUY MALO","REGULAR"])}</tbody></table></div><div><h3>Pregunta 4 · Área administrativa</h3><table><thead><tr><th>Respuesta</th><th>Cantidad</th><th>%</th></tr></thead><tbody>${dist("q4_administrativa",["BUENO","EXCELENTE","MALO","MUY MALO","REGULAR"])}</tbody></table></div><div><h3>Pregunta 5 · Agilidad</h3><table><thead><tr><th>Respuesta</th><th>Cantidad</th><th>%</th></tr></thead><tbody>${dist("q5_agilidad",["AGIL","DEMORADOS","MUY DEMORADOS","NI DEMORADOS NI AGIL"])}</tbody></table></div></div></section><section class="print-table-section"><div class="print-table-title"><div><span class="print-kicker">DETALLE</span><h2>Respuestas de las encuestas</h2></div><strong>${total} resultado${total===1?"":"s"}</strong></div><div class="print-table-scroll"><table><thead><tr><th>Fecha</th><th>Asesor</th><th>Usuario</th><th>Q2 Servicio</th><th>Obs. Q2</th><th>Q3 Técnica</th><th>Obs. Q3</th><th>Q4 Administrativa</th><th>Obs. Q4</th><th>Q5 Agilidad</th><th>Q6 Recomienda</th><th>Q7 Recomendación / felicitación</th></tr></thead><tbody>${detail}</tbody></table></div></section></div>`;
+  }
+
+  function downloadSurveyExcel(){
+    if(!window.XLSX){showToast("No se pudo cargar el módulo de Excel.",true);return;}
+    const list=getFilteredSurveys();
+    try{
+      const detail=list.map(s=>{const a=s.perfiles||{};return {
+        "Fecha":s.fecha_encuesta||"","Asesor":[a.nombre,a.apellido].filter(Boolean).join(" ")||a.email||"","Código y nombre del usuario":s.codigo_nombre_usuario||"",
+        "P2 Servicio":s.q2_servicio||"","Observación P2":s.observacion_q2||"","P3 Área técnica":s.q3_tecnica||"","Observación P3":s.observacion_q3||"",
+        "P4 Área administrativa":s.q4_administrativa||"","Observación P4":s.observacion_q4||"","P5 Agilidad":s.q5_agilidad||"","P6 Recomendaría":s.q6_recomendaria||"","P7 Recomendación / felicitación":s.q7_recomendacion||""
+      };});
+      const ws=window.XLSX.utils.json_to_sheet(detail.length?detail:[{"Fecha":"","Asesor":"","Código y nombre del usuario":""}],{});
+      ws["!cols"]=[{wch:12},{wch:24},{wch:32},{wch:18},{wch:32},{wch:18},{wch:32},{wch:22},{wch:32},{wch:28},{wch:18},{wch:45}];
+      const wb=window.XLSX.utils.book_new();window.XLSX.utils.book_append_sheet(wb,ws,"Encuestas");
+      const summary=surveyReportPeople().map(a=>{const rows=list.filter(s=>s.asesor_id===a.id),y=rows.filter(s=>s.q6_recomendaria==="SI").length;return {"Asesor":[a.nombre,a.apellido].filter(Boolean).join(" ")||a.email||"Asesor","Encuestas":rows.length,"Sí":y,"No":rows.filter(s=>s.q6_recomendaria==="NO").length,"% Sí":rows.length?Math.round(y/rows.length*100):0};});
+      window.XLSX.utils.book_append_sheet(wb,window.XLSX.utils.json_to_sheet(summary.length?summary:[{"Asesor":"","Encuestas":0,"Sí":0,"No":0,"% Sí":0}]),"Resumen por asesor");
+      window.XLSX.writeFile(wb,`reporte-encuestas-${getTodayISO()}.xlsx`);showToast("Excel de encuestas descargado correctamente.");
+    }catch(e){console.error(e);showToast("No fue posible generar el Excel de encuestas.",true);}
+  }
 
   function renderUsers(){const tbody=id("tabla-usuarios");if(!tbody)return;tbody.innerHTML=advisors.map(a=>{const name=[a.nombre,a.apellido].filter(Boolean).join(" ")||"—";return `<tr><td><strong>${escapeHTML(name)}</strong></td><td>${escapeHTML(a.email||"—")}</td><td>${escapeHTML(a.zona||"—")}</td><td>${Number(a.meta_mensual)||50}</td><td>${a.activo===false?'<span class="badge badge-disabled">Inhabilitado</span>':'<span class="badge badge-active">Activo</span>'}</td><td class="action-cell"><button class="btn-small" onclick="editAdvisor('${a.id}')">Editar</button><button class="btn-small" onclick="toggleAdvisor('${a.id}',${a.activo!==false})">${a.activo===false?"Habilitar":"Inhabilitar"}</button><button class="btn-delete" onclick="deleteAdvisor('${a.id}')">Eliminar</button></td></tr>`;}).join("")||'<tr class="empty-row"><td colspan="6">No hay asesores registrados.</td></tr>';}
 
-  async function saveAdminUser(e){e.preventDefault();const idUser=id("admin-user-id").value;const body={nombre:value("admin-user-nombre"),apellido:value("admin-user-apellido"),documento:value("admin-user-documento"),telefono:value("admin-user-telefono"),zona:value("admin-user-zona"),email:value("admin-user-email"),meta_mensual:Math.max(1,Number(id("admin-user-meta").value)||50)};if(!idUser){const password=id("admin-user-password").value;if(password.length<6){showToast("La contraseña debe tener mínimo 6 caracteres.",true);return;}const session=(await sbClient.auth.getSession()).data.session;const {data,error}=await fetchAdminFunction("create",{...body,password});if(error){showToast(error,true);return;}showToast("Asesor creado correctamente.");resetUserForm();await loadAdminData();return;}const result=await fetchAdminFunction("update",{user_id:idUser,...body});if(result.error){showToast(result.error,true);return;}showToast("Asesor actualizado.");resetUserForm();await loadAdminData();}
+  async function saveAdminUser(e){e.preventDefault();const idUser=id("admin-user-id").value;const body={nombre:value("admin-user-nombre"),apellido:value("admin-user-apellido"),documento:value("admin-user-documento"),telefono:value("admin-user-telefono"),zona:value("admin-user-zona"),email:value("admin-user-email"),meta_mensual:Math.max(1,Number(id("admin-user-meta").value)||50)};if(!idUser){const password=id("admin-user-password").value;if(password.length<6){showToast("La contraseña debe tener mínimo 6 caracteres.",true);return;}const {data:{session}}=await sbClient.auth.getSession();if(!session){showToast("Sesión no disponible.",true);return;}const result=await fetchAdminFunction("create",{...body,password});if(result.error){showToast(result.error,true);return;}showToast("Asesor creado correctamente.");resetUserForm();await loadAdminData();return;}const result=await fetchAdminFunction("update",{user_id:idUser,...body});if(result.error){showToast(result.error,true);return;}showToast("Asesor actualizado.");resetUserForm();await loadAdminData();}
   async function fetchAdminFunction(action,payload){const {data:{session}}=await sbClient.auth.getSession();if(!session)return{error:"Sesión no disponible."};try{const r=await fetch(`${SUPABASE_URL}/functions/v1/admin-users`,{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${session.access_token}`},body:JSON.stringify({action,...payload})});const j=await r.json().catch(()=>({}));return r.ok?{data:j}:{error:j.error||`Error ${r.status}`};}catch(e){return{error:"No se pudo contactar la función de administración. Debes desplegar supabase/functions/admin-users."};}}
   function editAdvisor(uid){const a=advisors.find(x=>x.id===uid);if(!a)return;id("admin-user-id").value=a.id;["nombre","apellido","documento","telefono","zona","email"].forEach(k=>id(`admin-user-${k}`).value=a[k]||"");id("admin-user-meta").value=Number(a.meta_mensual)||50;id("admin-user-password").value="";id("btn-save-user").textContent="Actualizar asesor";id("btn-cancel-user-edit").classList.remove("hidden");document.getElementById("vista-usuarios").scrollIntoView({behavior:"smooth"});}
   async function toggleAdvisor(uid,active){const {error}=await sbClient.from("perfiles").update({activo:!active}).eq("id",uid);if(error){showToast(error.message,true);return;}showToast(active?"Asesor inhabilitado.":"Asesor habilitado.");await loadAdminData();}
@@ -119,13 +282,45 @@
   async function removeLogo(){const {error}=await sbClient.from("configuracion").upsert({id:1,color_principal:config.color_principal,logo_url:"",updated_by:currentUser.id},{onConflict:"id"});if(error){showToast(error.message,true);return;}config.logo_url="";renderConfig();showToast("Imagen retirada del reporte.");}
   function renderConfig(){id("config-color").value=config.color_principal||"#8b5cf6";id("logo-preview").innerHTML=config.logo_url?`<img src="${config.logo_url}" alt="Logo de empresa">`:'<span>LOGO</span>';}
   function applyTheme(){document.documentElement.style.setProperty("--purple-primary",config.color_principal||"#8b5cf6");}
-
   function clearAdminFilters(){["filtroAdminTexto","filtroAsesorAdmin","filtroEstadoAdmin","filtroTipoAdmin","filtroServicioAdmin","filtroZonaAdmin","filtroDesdeAdmin","filtroHastaAdmin"].forEach(x=>id(x).value="");renderAdmin();}
+
+  function getCurrentMonthKey(){
+    const now=new Date();
+    return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+  }
+  function getMonthLabel(){
+    return new Date().toLocaleDateString("es-CO",{month:"long",year:"numeric"});
+  }
+  function getAdminMonthlyGoal(){
+    return advisors.reduce((sum,a)=>sum+Math.max(1,Number(a.meta_mensual)||50),0);
+  }
+  function getAdminMonthlySales(){
+    const ym=getCurrentMonthKey();
+    return sales.filter(s=>s.fecha_venta?.startsWith(ym)&&s.tipo_operacion==="Venta");
+  }
+  function updateAdminDashboard(){
+    const total=sales.length,ventas=sales.filter(s=>s.tipo_operacion==="Venta").length,p=sales.filter(s=>s.estado_instalacion==="PENDIENTE").length,r=sales.filter(s=>s.estado_instalacion==="REALIZADA").length,c=sales.filter(s=>s.estado_instalacion==="CANCELADA").length;
+    setText("dash-total",total);setText("dash-ventas",ventas);setText("dash-pendientes",p);setText("dash-realizadas",r);setText("dash-canceladas",c);
+    const monthly=getAdminMonthlySales(),goal=getAdminMonthlyGoal(),made=monthly.length,pct=goal?Math.min(100,Math.round(made/goal*100)):0;
+    setText("dash-admin-goal-title",`${made} / ${goal} ventas`);
+    setText("dash-admin-goal-period",`Meta total de ${advisors.length} asesor${advisors.length===1?"":"es"} para ${getMonthLabel()}. El avance se reinicia automáticamente al cambiar de mes.`);
+    if(id("dash-admin-goal-bar"))id("dash-admin-goal-bar").style.width=`${pct}%`;
+    setText("dash-admin-goal-percent",`${pct}%`);
+    setText("dash-admin-goal-detail",`${made} ventas realizadas de ${goal}`);
+    if(id("dash-admin-goal-breakdown"))id("dash-admin-goal-breakdown").innerHTML=advisors.map(a=>{
+      const n=[a.nombre,a.apellido].filter(Boolean).join(" ")||a.email||"Asesor",g=Math.max(1,Number(a.meta_mensual)||50),count=monthly.filter(s=>s.asesor_id===a.id).length,ap=Math.min(100,Math.round(count/g*100));
+      return `<div class="admin-goal-breakdown-row"><span>${escapeHTML(n)}</span><strong>${count}/${g}</strong><small>${ap}%</small></div>`;
+    }).join("")||'<span class="muted">No hay asesores registrados.</span>';
+    id("dash-goals-list").innerHTML=advisors.map(a=>{const n=[a.nombre,a.apellido].filter(Boolean).join(" ")||a.email,count=monthly.filter(s=>s.asesor_id===a.id).length,g=Math.max(1,Number(a.meta_mensual)||50),ap=Math.min(100,Math.round(count/g*100));return `<div class="goal-list-row"><div><strong>${escapeHTML(n)}</strong><small>${count} / ${g} ventas</small></div><div class="mini-progress"><span style="width:${ap}%"></span></div><b>${ap}%</b></div>`;}).join("")||'<p class="muted">No hay asesores registrados.</p>';
+    const counts=SERVICES.map(s=>({s,n:monthly.filter(x=>x.servicio===s).length}));const max=Math.max(1,...counts.map(x=>x.n));id("dash-services-list").innerHTML=counts.map(x=>`<div class="mini-bar-row"><span>${x.s}</span><div><i style="width:${x.n/max*100}%"></i></div><strong>${x.n}</strong></div>`).join("");
+  }
 
   function buildReportHTML(){const filtered=getFilteredAdminSales(),total=filtered.length,ventas=filtered.filter(s=>s.tipo_operacion==="Venta").length,recon=filtered.filter(s=>s.tipo_operacion==="Reconexión").length,otros=filtered.filter(s=>s.tipo_operacion==="Otros").length,real=filtered.filter(s=>s.estado_instalacion==="REALIZADA").length,pending=filtered.filter(s=>s.estado_instalacion==="PENDIENTE").length,cancel=filtered.filter(s=>s.estado_instalacion==="CANCELADA").length,pct=n=>total?Math.round(n/total*100):0;
     const advisorMap={};filtered.forEach(s=>{const a=s.perfiles||{},n=[a.nombre,a.apellido].filter(Boolean).join(" ")||"Sin asesor";if(!advisorMap[n])advisorMap[n]={ventas:0,meta:Math.max(1,Number(a.meta_mensual)||50)};if(s.tipo_operacion==="Venta")advisorMap[n].ventas++;});const advisorRows=Object.entries(advisorMap).sort((a,b)=>b[1].ventas-a[1].ventas).map(([n,d])=>{const gp=Math.min(100,Math.round(d.ventas/d.meta*100));return `<div class="print-advisor-row"><div class="print-advisor-label"><span>${escapeHTML(n)}</span><strong>${d.ventas}/${d.meta} ventas · ${gp}%</strong></div><div class="print-bar-track"><div class="print-bar-fill" style="width:${gp}%"></div></div></div>`;}).join("")||'<div class="print-empty-chart">Sin datos</div>';
+    const adminMonthlySales=getAdminMonthlySales(),adminGoal=getAdminMonthlyGoal(),adminMade=adminMonthlySales.length,adminPct=adminGoal?Math.min(100,Math.round(adminMade/adminGoal*100)):0;
+    const adminGoalRows=advisors.map(a=>{const n=[a.nombre,a.apellido].filter(Boolean).join(" ")||a.email||"Asesor",g=Math.max(1,Number(a.meta_mensual)||50),made=adminMonthlySales.filter(s=>s.asesor_id===a.id).length,p=Math.min(100,Math.round(made/g*100));return `<tr><td>${escapeHTML(n)}</td><td>${made}</td><td>${g}</td><td>${p}%</td></tr>`;}).join("")||'<tr><td colspan="4" class="print-empty-row">No hay asesores registrados.</td></tr>';
     const desde=value("filtroDesdeAdmin"),hasta=value("filtroHastaAdmin"),period=desde||hasta?`${desde?formatDate(desde):"Inicio"} – ${hasta?formatDate(hasta):"Actual"}`:"Todos los periodos";const rows=filtered.map(s=>{const a=s.perfiles||{},n=[a.nombre,a.apellido].filter(Boolean).join(" ")||"—";return `<tr><td>${escapeHTML(n)}</td><td>${escapeHTML(s.tipo_operacion||"—")}</td><td>${escapeHTML([s.servicio,s.descripcion_servicio].filter(Boolean).join(" · "))}</td><td>${escapeHTML(s.zona||"—")}</td><td>${escapeHTML(statusLabel(s.estado_instalacion))}</td></tr>`}).join("");
-    return `<div class="print-report-sheet">${config.logo_url?`<div class="print-logo"><img src="${config.logo_url}" alt="Logo"></div>`:""}<div class="print-header"><div><span class="print-kicker">REPORTE DE OPERACIONES</span><h1>Ventas e instalaciones</h1><p>Periodo: <strong>${escapeHTML(period)}</strong></p></div><div class="print-generated">Generado: ${new Date().toLocaleString("es-CO")}</div></div><div class="print-summary"><div class="print-summary-card"><span>Total operaciones</span><strong>${total}</strong></div><div class="print-summary-card"><span>Realizadas</span><strong>${real}</strong></div><div class="print-summary-card"><span>Pendientes</span><strong>${pending}</strong></div><div class="print-summary-card"><span>Canceladas</span><strong>${cancel}</strong></div></div><section class="print-charts"><div class="print-chart-card"><h2>Operaciones</h2><div class="print-donut" style="--first:${pct(ventas)*3.6}deg"><div class="print-donut-center"><strong>${total}</strong><span>total</span></div></div><div class="print-legend"><span>Venta <strong>${pct(ventas)}%</strong></span><span>Reconexión <strong>${pct(recon)}%</strong></span><span>Otros <strong>${pct(otros)}%</strong></span></div></div><div class="print-chart-card"><h2>Estado</h2><div class="print-donut" style="--first:${pct(real)*3.6}deg"><div class="print-donut-center"><strong>${pct(real)}%</strong><span>realizadas</span></div></div><div class="print-legend"><span>Realizada <strong>${pct(real)}%</strong></span><span>Pendiente <strong>${pct(pending)}%</strong></span><span>Cancelada <strong>${pct(cancel)}%</strong></span></div></div><div class="print-chart-card print-advisor-chart"><h2>Cumplimiento de meta por asesor</h2>${advisorRows}</div></section><section class="print-table-section"><div class="print-table-title"><div><span class="print-kicker">DETALLE</span><h2>Operaciones registradas</h2></div><strong>${total} resultado${total===1?"":"s"}</strong></div><div class="print-table-scroll"><table><thead><tr><th>Asesor</th><th>Operación</th><th>Servicio</th><th>Zona</th><th>Estado</th></tr></thead><tbody>${rows||'<tr><td colspan="5" class="print-empty-row">No hay registros.</td></tr>'}</tbody></table></div></section></div>`;
+    return `<div class="print-report-sheet">${config.logo_url?`<div class="print-logo"><img src="${config.logo_url}" alt="Logo"></div>`:""}<div class="print-header"><div><span class="print-kicker">REPORTE DE OPERACIONES</span><h1>Ventas e instalaciones</h1><p>Periodo: <strong>${escapeHTML(period)}</strong></p></div><div class="print-generated">Generado: ${new Date().toLocaleString("es-CO")}</div></div><div class="print-summary"><div class="print-summary-card"><span>Total operaciones</span><strong>${total}</strong></div><div class="print-summary-card"><span>Realizadas</span><strong>${real}</strong></div><div class="print-summary-card"><span>Pendientes</span><strong>${pending}</strong></div><div class="print-summary-card"><span>Canceladas</span><strong>${cancel}</strong></div><div class="print-summary-card print-admin-goal-card"><span>Meta administrador · ${escapeHTML(getMonthLabel())}</span><strong>${adminMade}/${adminGoal} · ${adminPct}%</strong><small>Suma de las metas de ${advisors.length} asesor${advisors.length===1?"":"es"}</small></div></div><section class="print-charts"><div class="print-chart-card"><h2>Operaciones</h2><div class="print-donut" style="--first:${pct(ventas)*3.6}deg"><div class="print-donut-center"><strong>${total}</strong><span>total</span></div></div><div class="print-legend"><span>Venta <strong>${pct(ventas)}%</strong></span><span>Reconexión <strong>${pct(recon)}%</strong></span><span>Otros <strong>${pct(otros)}%</strong></span></div></div><div class="print-chart-card"><h2>Estado</h2><div class="print-donut" style="--first:${pct(real)*3.6}deg"><div class="print-donut-center"><strong>${pct(real)}%</strong><span>realizadas</span></div></div><div class="print-legend"><span>Realizada <strong>${pct(real)}%</strong></span><span>Pendiente <strong>${pct(pending)}%</strong></span><span>Cancelada <strong>${pct(cancel)}%</strong></span></div></div><div class="print-chart-card print-advisor-chart"><h2>Cumplimiento de meta por asesor</h2>${advisorRows}</div></section><section class="print-table-section"><div class="print-table-title"><div><span class="print-kicker">META MENSUAL</span><h2>Meta del administrador</h2></div><strong>${adminMade}/${adminGoal} · ${adminPct}%</strong></div><div class="print-admin-goal-bar"><div><span style="width:${adminPct}%"></span></div></div><p class="print-meta-note">La meta del administrador corresponde a la suma de las metas mensuales configuradas para todos los asesores. El avance utiliza únicamente las ventas de ${escapeHTML(getMonthLabel())}; al comenzar un nuevo mes, el contador vuelve a cero.</p><div class="print-table-scroll"><table><thead><tr><th>Asesor</th><th>Ventas del mes</th><th>Meta mensual</th><th>% cumplimiento</th></tr></thead><tbody>${adminGoalRows}</tbody></table></div></section><section class="print-table-section"><div class="print-table-title"><div><span class="print-kicker">DETALLE</span><h2>Operaciones registradas</h2></div><strong>${total} resultado${total===1?"":"s"}</strong></div><div class="print-table-scroll"><table><thead><tr><th>Asesor</th><th>Operación</th><th>Servicio</th><th>Zona</th><th>Estado</th></tr></thead><tbody>${rows||'<tr><td colspan="5" class="print-empty-row">No hay registros.</td></tr>'}</tbody></table></div></section></div>`;
   }
   function previewReport(builder=buildReportHTML){const modal=id("report-preview-modal"),content=id("report-preview-content");if(!modal||!content)return;content.innerHTML=builder();modal.classList.remove("hidden");modal.setAttribute("aria-hidden","false");document.body.classList.add("report-preview-open");}
   function closeReportPreview(){const modal=id("report-preview-modal");if(!modal)return;modal.classList.add("hidden");modal.setAttribute("aria-hidden","true");document.body.classList.remove("report-preview-open");}
@@ -157,6 +352,7 @@
       const summary=[
         ["REPORTE DE OPERACIONES"], ["Periodo", value("filtroDesdeAdmin")||value("filtroHastaAdmin")?`${value("filtroDesdeAdmin")?formatDate(value("filtroDesdeAdmin")):"Inicio"} – ${value("filtroHastaAdmin")?formatDate(value("filtroHastaAdmin")):"Actual"}`:"Todos los periodos"], [],
         ["RESUMEN GENERAL"],["Indicador","Cantidad","Porcentaje"],["Total operaciones",total,"100%"],["Ventas",ventas,`${pct(ventas)}%`],["Reconexiones",recon,`${pct(recon)}%`],["Otros",otros,`${pct(otros)}%`],["Realizadas",real,`${pct(real)}%`],["Pendientes",pending,`${pct(pending)}%`],["Canceladas",cancel,`${pct(cancel)}%`],[],
+        ["META DEL ADMINISTRADOR · MES ACTUAL"],["Indicador","Valor"],["Ventas del mes",getAdminMonthlySales().length],["Meta total de asesores",getAdminMonthlyGoal()],["Cumplimiento",`${getAdminMonthlyGoal()?Math.min(100,Math.round(getAdminMonthlySales().length/getAdminMonthlyGoal()*100)):0}%`],["Asesores incluidos",advisors.length],[],
         ["GRÁFICO · OPERACIONES"],["Categoría","Cantidad","%","Representación"],["Venta",ventas,pct(ventas),"█".repeat(Math.max(0,Math.round(pct(ventas)/5)))],["Reconexión",recon,pct(recon),"█".repeat(Math.max(0,Math.round(pct(recon)/5)))],["Otros",otros,pct(otros),"█".repeat(Math.max(0,Math.round(pct(otros)/5)))],[],
         ["GRÁFICO · ESTADO"],["Estado","Cantidad","%","Representación"],["Realizada",real,pct(real),"█".repeat(Math.max(0,Math.round(pct(real)/5)))],["Pendiente",pending,pct(pending),"█".repeat(Math.max(0,Math.round(pct(pending)/5)))],["Cancelada",cancel,pct(cancel),"█".repeat(Math.max(0,Math.round(pct(cancel)/5)))],[],
         ["GRÁFICO · CUMPLIMIENTO DE META POR ASESOR"],["Asesor","Ventas","Meta","% cumplimiento","Representación"],
@@ -169,7 +365,7 @@
   }
 
   function showAuthView(){["auth-view","register-view","vista-asesor","admin-dashboard","vista-admin","vista-usuarios","vista-configuracion"].forEach(x=>id(x).classList.add("hidden"));id("auth-view").classList.remove("hidden");id("session-area").classList.add("hidden");id("btn-menu").classList.add("hidden");id("sidebar").classList.add("hidden");}
-  function showView(viewId){["auth-view","register-view","vista-asesor","admin-dashboard","vista-admin","vista-usuarios","vista-configuracion","vista-respaldo"].forEach(x=>id(x).classList.add("hidden"));id(viewId).classList.remove("hidden");if(viewId!=="auth-view"&&currentProfile){id("session-area").classList.remove("hidden");id("btn-menu").classList.remove("hidden");id("sidebar").classList.remove("hidden");}}
+  function showView(viewId){["auth-view","register-view","vista-asesor","vista-encuestas","admin-dashboard","vista-admin","vista-reporte-encuestas","vista-usuarios","vista-configuracion","vista-respaldo"].forEach(x=>id(x).classList.add("hidden"));id(viewId).classList.remove("hidden");if(viewId!=="auth-view"&&currentProfile){id("session-area").classList.remove("hidden");id("btn-menu").classList.remove("hidden");id("sidebar").classList.remove("hidden");}}
   async function logout(){const {error}=await sbClient.auth.signOut();if(error)showToast("No fue posible cerrar la sesión.",true);}
   function installationStatus(s){if(s==="REALIZADA")return '<span class="badge badge-complete">Realizada</span>';if(s==="CANCELADA")return '<span class="badge badge-cancelled">Cancelada</span>';return '<span class="badge badge-pending">Pendiente</span>';}
   function statusLabel(s){return s==="REALIZADA"?"Realizada":s==="CANCELADA"?"Cancelada":"Pendiente";}
@@ -184,19 +380,22 @@
     if(!window.XLSX){showToast("No se pudo cargar el módulo de Excel.",true);return;}
     setButtonBusy(btn,true,"Generando respaldo...");
     try{
-      const [ventasRes,perfilesRes]=await Promise.all([
+      const [ventasRes,perfilesRes,encuestasRes]=await Promise.all([
         sbClient.from("ventas").select("*").order("id",{ascending:true}),
-        sbClient.from("perfiles").select("*").order("created_at",{ascending:true})
+        sbClient.from("perfiles").select("*").order("created_at",{ascending:true}),
+        sbClient.from("encuestas").select("*").order("id",{ascending:true})
       ]);
-      if(ventasRes.error||perfilesRes.error){console.error(ventasRes.error||perfilesRes.error);showToast("No fue posible generar el respaldo.",true);return;}
+      if(ventasRes.error||perfilesRes.error||encuestasRes.error){console.error(ventasRes.error||perfilesRes.error||encuestasRes.error);showToast("No fue posible generar el respaldo.",true);return;}
       const wb=window.XLSX.utils.book_new();
       const wsVentas=window.XLSX.utils.json_to_sheet(ventasRes.data&&ventasRes.data.length?ventasRes.data:[{id:""}]);
       const wsPerfiles=window.XLSX.utils.json_to_sheet(perfilesRes.data&&perfilesRes.data.length?perfilesRes.data:[{id:""}]);
+      const wsEncuestas=window.XLSX.utils.json_to_sheet(encuestasRes.data&&encuestasRes.data.length?encuestasRes.data:[{id:""}]);
       window.XLSX.utils.book_append_sheet(wb,wsVentas,"Ventas");
       window.XLSX.utils.book_append_sheet(wb,wsPerfiles,"Perfiles");
+      window.XLSX.utils.book_append_sheet(wb,wsEncuestas,"Encuestas");
       const now=new Date();
       window.XLSX.writeFile(wb,`respaldo-cabletelco-${now.toISOString().slice(0,10)}.xlsx`);
-      status.textContent=`Último respaldo generado: ${now.toLocaleString("es-CO")} · ${ventasRes.data.length} ventas, ${perfilesRes.data.length} perfiles.`;
+      status.textContent=`Último respaldo generado: ${now.toLocaleString("es-CO")} · ${ventasRes.data.length} ventas, ${perfilesRes.data.length} perfiles, ${encuestasRes.data.length} encuestas.`;
       showToast("Respaldo generado correctamente.");
     }catch(e){console.error(e);showToast("No fue posible generar el respaldo.",true);}
     finally{setButtonBusy(btn,false,"⭳ Descargar respaldo completo");}

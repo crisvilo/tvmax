@@ -43,13 +43,12 @@
     <section id="register-view" class="auth-layout hidden">
       <div class="auth-card card auth-card-wide">
         <div class="auth-brand"><span class="auth-icon">+</span><div><span class="eyebrow">NUEVO ASESOR</span><h2>Registro de asesor</h2></div></div>
-        <p class="auth-description">Registra tus datos y la zona que tienes asignada.</p>
+        <p class="auth-description">Registra tus datos como asesor de Cartera. Las zonas se seleccionan en cada operación.</p>
         <form id="register-form" class="register-grid">
           <div class="form-group"><label for="reg-nombre">Nombre <span>*</span></label><input id="reg-nombre" type="text" required></div>
           <div class="form-group"><label for="reg-apellido">Apellido <span>*</span></label><input id="reg-apellido" type="text" required></div>
           <div class="form-group"><label for="reg-documento">Documento</label><input id="reg-documento" type="text"></div>
           <div class="form-group"><label for="reg-telefono">Teléfono</label><input id="reg-telefono" type="tel"></div>
-          <div class="form-group"><label for="reg-zona">Zona asignada <span>*</span></label><input id="reg-zona" type="text" required placeholder="Ej. Norte"></div>
           <div class="form-group"><label for="reg-email">Correo electrónico <span>*</span></label><input id="reg-email" type="email" required></div>
           <div class="form-group"><label for="reg-password">Contraseña <span>*</span></label><input id="reg-password" type="password" minlength="6" required></div>
           <div class="form-group"><label for="reg-password-confirm">Confirmar contraseña <span>*</span></label><input id="reg-password-confirm" type="password" minlength="6" required></div>
@@ -84,6 +83,116 @@
       <div class="card table-card"><div class="card-heading table-heading"><div><span class="section-kicker">HISTORIAL</span><h3>Mis operaciones</h3></div><div class="table-tools"><input id="filtroAsesor" type="search" placeholder="Buscar cliente, código, servicio o zona..."><button id="btn-asesor-report" class="btn-secondary" type="button">👁 Ver mi reporte</button><button id="btn-asesor-print" class="btn-secondary" type="button">🖨 Imprimir</button><button id="btn-asesor-pdf" class="btn-primary" type="button">📄 Descargar PDF</button></div></div><div class="table-wrapper"><table><thead><tr><th>ID</th><th>Tipo</th><th>Cliente</th><th>Servicio</th><th>Descripción</th><th>Zona</th><th>Fecha</th><th>Estado</th><th>Instalación</th></tr></thead><tbody id="tabla-asesor"></tbody></table></div></div>
     </section>
 
+
+    <section id="vista-encuestas" class="view hidden">
+      <div class="page-heading">
+        <div>
+          <span class="eyebrow">SATISFACCIÓN DEL USUARIO</span>
+          <h2>Encuesta de usuarios Internet</h2>
+          <p id="survey-mode-description">Diligencia la encuesta utilizando exactamente las preguntas del formulario de satisfacción de Grupo TV Max.</p>
+        </div>
+      </div>
+
+      <div class="card form-card survey-card">
+        <div class="card-heading">
+          <div><span class="section-kicker">NUEVA ENCUESTA</span><h3>Encuesta de satisfacción</h3></div>
+          <span class="survey-badge">7 preguntas</span>
+        </div>
+        <form id="survey-form" class="survey-form">
+          <div class="form-group form-group-wide">
+            <label for="enc-codigo-nombre">1. CÓDIGO Y NOMBRE COMPLETO DEL USUARIO <span>*</span></label>
+            <input id="enc-codigo-nombre" type="text" required placeholder="Código y nombre completo del usuario">
+          </div>
+
+          <div class="survey-question">
+            <label>2. ¿CÓMO CALIFICA EL SERVICIO PRESTADO POR GRUPO TV MAX? <span>*</span></label>
+            <div class="survey-options">
+              <label><input type="radio" name="enc-q2" value="BUENO" required><span>BUENO</span></label>
+              <label><input type="radio" name="enc-q2" value="EXCELENTE"><span>EXCELENTE</span></label>
+              <label><input type="radio" name="enc-q2" value="MALO"><span>MALO</span></label>
+              <label><input type="radio" name="enc-q2" value="MUY MALO"><span>MUY MALO</span></label>
+              <label><input type="radio" name="enc-q2" value="REGULAR"><span>REGULAR</span></label>
+            </div>
+          </div>
+          <div class="form-group form-group-wide">
+            <label for="enc-obs2">OBSERVACIÓN PREGUNTA 2</label>
+            <textarea id="enc-obs2" rows="3" placeholder="Tu respuesta"></textarea>
+          </div>
+
+          <div class="survey-question">
+            <label>3. ¿CÓMO CALIFICA LA ATENCIÓN PRESTADA POR PARTE DEL ÁREA TÉCNICA DE GRUPO TV MAX AL ACERCARSE A SU RESIDENCIA? <span>*</span></label>
+            <div class="survey-options">
+              <label><input type="radio" name="enc-q3" value="BUENO" required><span>BUENO</span></label>
+              <label><input type="radio" name="enc-q3" value="EXCELENTE"><span>EXCELENTE</span></label>
+              <label><input type="radio" name="enc-q3" value="MALO"><span>MALO</span></label>
+              <label><input type="radio" name="enc-q3" value="MUY MALO"><span>MUY MALO</span></label>
+              <label><input type="radio" name="enc-q3" value="REGULAR"><span>REGULAR</span></label>
+            </div>
+          </div>
+          <div class="form-group form-group-wide">
+            <label for="enc-obs3">OBSERVACIÓN PREGUNTA 3</label>
+            <textarea id="enc-obs3" rows="3" placeholder="Tu respuesta"></textarea>
+          </div>
+
+          <div class="survey-question">
+            <label>4. ¿CÓMO CALIFICA LA ATENCIÓN PRESTADA POR PARTE DEL ÁREA ADMINISTRATIVA DE GRUPO TV MAX CUANDO SE ACERCA A LA OFICINA O POR MEDIO DE LLAMADAS? <span>*</span></label>
+            <div class="survey-options">
+              <label><input type="radio" name="enc-q4" value="BUENO" required><span>BUENO</span></label>
+              <label><input type="radio" name="enc-q4" value="EXCELENTE"><span>EXCELENTE</span></label>
+              <label><input type="radio" name="enc-q4" value="MALO"><span>MALO</span></label>
+              <label><input type="radio" name="enc-q4" value="MUY MALO"><span>MUY MALO</span></label>
+              <label><input type="radio" name="enc-q4" value="REGULAR"><span>REGULAR</span></label>
+            </div>
+          </div>
+          <div class="form-group form-group-wide">
+            <label for="enc-obs4">OBSERVACIÓN PREGUNTA 4</label>
+            <textarea id="enc-obs4" rows="3" placeholder="Tu respuesta"></textarea>
+          </div>
+
+          <div class="survey-question">
+            <label>5. ¿CUANDO HA TENIDO DAÑOS O AVERÍAS EN ALGUNO DE LOS SERVICIOS CONTRATADOS, QUÉ TAN ÁGILES Y OPORTUNOS HEMOS SIDO? <span>*</span></label>
+            <div class="survey-options">
+              <label><input type="radio" name="enc-q5" value="AGIL" required><span>AGIL</span></label>
+              <label><input type="radio" name="enc-q5" value="DEMORADOS"><span>DEMORADOS</span></label>
+              <label><input type="radio" name="enc-q5" value="MUY DEMORADOS"><span>MUY DEMORADOS</span></label>
+              <label><input type="radio" name="enc-q5" value="NI DEMORADOS NI AGIL"><span>NI DEMORADOS NI AGIL</span></label>
+            </div>
+          </div>
+
+          <div class="survey-question">
+            <label>6. RECOMENDARÍA NUESTROS SERVICIOS <span>*</span></label>
+            <div class="survey-options survey-options-inline">
+              <label><input type="radio" name="enc-q6" value="SI" required><span>SI</span></label>
+              <label><input type="radio" name="enc-q6" value="NO"><span>NO</span></label>
+            </div>
+          </div>
+
+          <div class="form-group form-group-wide">
+            <label for="enc-q7">7. ¿TIENE ALGUNA RECOMENDACIÓN O FELICITACIÓN QUE HACERLE A GRUPO TV MAX?</label>
+            <textarea id="enc-q7" rows="4" placeholder="Tu respuesta"></textarea>
+          </div>
+
+          <div class="form-actions form-actions-wide">
+            <button type="reset" class="btn-secondary">Limpiar</button>
+            <button type="submit" class="btn-primary">Guardar encuesta</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card table-card">
+        <div class="card-heading table-heading">
+          <div><span class="section-kicker">HISTORIAL</span><h3>Encuestas diligenciadas por mí</h3></div>
+          <span id="advisor-survey-count" class="result-count">0 encuestas</span>
+        </div>
+        <div class="table-wrapper">
+          <table class="survey-history-table">
+            <thead><tr><th>Fecha</th><th>Usuario</th><th>Servicio</th><th>Área técnica</th><th>Área administrativa</th><th>Agilidad</th><th>Recomienda</th><th>Observación</th></tr></thead>
+            <tbody id="tabla-encuestas-asesor"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     <section id="admin-dashboard" class="view hidden">
       <div class="page-heading"><div><span class="eyebrow">ADMINISTRACIÓN</span><h2>Dashboard general</h2><p>Visión global de operaciones, instalaciones y cumplimiento comercial.</p></div></div>
       <div class="stats-grid admin-stats">
@@ -93,7 +202,18 @@
         <div class="card stat-card"><div class="stat-icon">✓</div><div><h3>Realizadas</h3><p id="dash-realizadas">0</p></div></div>
         <div class="card stat-card"><div class="stat-icon">✕</div><div><h3>Canceladas</h3><p id="dash-canceladas">0</p></div></div>
       </div>
-      <div class="dashboard-grid"><div class="card dashboard-card"><span class="section-kicker">META GLOBAL</span><h3>Ventas del mes</h3><div id="dash-goals-list" class="goal-list"></div></div><div class="card dashboard-card"><span class="section-kicker">SERVICIOS</span><h3>Distribución mensual</h3><div id="dash-services-list" class="mini-bars"></div></div></div>
+      <div class="dashboard-grid">
+        <div class="card dashboard-card admin-global-goal-card">
+          <span class="section-kicker">META DEL ADMINISTRADOR</span>
+          <h3 id="dash-admin-goal-title">0 / 0 ventas</h3>
+          <p id="dash-admin-goal-period" class="muted">Meta mensual del equipo.</p>
+          <div class="admin-goal-main-progress"><span id="dash-admin-goal-bar"></span></div>
+          <div class="admin-goal-main-stats"><strong id="dash-admin-goal-percent">0%</strong><span id="dash-admin-goal-detail">0 ventas realizadas de 0</span></div>
+          <div class="admin-goal-breakdown" id="dash-admin-goal-breakdown"></div>
+        </div>
+        <div class="card dashboard-card"><span class="section-kicker">META POR ASESOR</span><h3>Avance mensual</h3><div id="dash-goals-list" class="goal-list"></div></div>
+      </div>
+      <div class="card dashboard-card"><span class="section-kicker">SERVICIOS</span><h3>Distribución mensual</h3><div id="dash-services-list" class="mini-bars"></div></div>
     </section>
 
     <section id="vista-admin" class="view hidden">
@@ -108,6 +228,65 @@
         <div class="form-group"><label for="filtroDesdeAdmin">Fecha desde</label><input id="filtroDesdeAdmin" type="date"></div><div class="form-group"><label for="filtroHastaAdmin">Fecha hasta</label><input id="filtroHastaAdmin" type="date"></div>
       </div></div>
       <div class="card table-card"><div class="card-heading table-heading"><div><span class="section-kicker">ADMINISTRACIÓN</span><h3>Operaciones registradas</h3></div><span id="admin-result-count" class="result-count">0 resultados</span></div><div class="table-wrapper"><table class="admin-operation-table"><thead><tr><th>ID</th><th>Asesor</th><th>Operación</th><th>Cliente</th><th>Servicio</th><th>Descripción</th><th>Zona</th><th>Fecha</th><th>Estado</th><th>Fecha instalación</th><th>Acciones</th></tr></thead><tbody id="tabla-admin"></tbody></table></div></div>
+    </section>
+
+
+    <section id="vista-reporte-encuestas" class="view hidden">
+      <div class="page-heading">
+        <div>
+          <span class="eyebrow">ADMINISTRACIÓN</span>
+          <h2>Reporte de encuestas</h2>
+          <p>Consulta la satisfacción de los usuarios y las respuestas registradas por cada asesor.</p>
+        </div>
+      </div>
+
+      <div class="card filters-card">
+        <div class="card-heading">
+          <div><span class="section-kicker">FILTROS</span><h3>Consulta de encuestas</h3></div>
+          <div class="filter-actions">
+            <button id="btn-clear-survey-filters" class="btn-secondary" type="button">Limpiar filtros</button>
+            <button id="btn-preview-survey-report" class="btn-secondary" type="button">👁 Vista previa</button>
+            <button id="btn-print-survey-report" class="btn-primary" type="button">🖨 Imprimir</button>
+            <button id="btn-pdf-survey-report" class="btn-primary" type="button">📄 Descargar PDF</button>
+            <button id="btn-excel-survey-report" class="btn-secondary" type="button">📊 Descargar Excel</button>
+          </div>
+        </div>
+        <div class="filters-grid">
+          <div class="form-group"><label for="filtroEncuestaTexto">Buscar usuario</label><input id="filtroEncuestaTexto" type="search" placeholder="Código o nombre del usuario..."></div>
+          <div class="form-group"><label for="filtroEncuestaAsesor">Asesor</label><select id="filtroEncuestaAsesor"><option value="">Todos los asesores</option></select></div>
+          <div class="form-group"><label for="filtroEncuestaQ6">Recomendaría</label><select id="filtroEncuestaQ6"><option value="">Todas</option><option value="SI">Sí</option><option value="NO">No</option></select></div>
+          <div class="form-group"><label for="filtroEncuestaDesde">Fecha desde</label><input id="filtroEncuestaDesde" type="date"></div>
+          <div class="form-group"><label for="filtroEncuestaHasta">Fecha hasta</label><input id="filtroEncuestaHasta" type="date"></div>
+        </div>
+      </div>
+
+      <div class="stats-grid survey-stats">
+        <div class="card stat-card"><div class="stat-icon">#</div><div><h3>Encuestas</h3><p id="survey-total-count">0</p></div></div>
+        <div class="card stat-card"><div class="stat-icon">★</div><div><h3>Promedio servicio</h3><p id="survey-service-average">—</p></div></div>
+        <div class="card stat-card"><div class="stat-icon">✓</div><div><h3>Recomiendan</h3><p id="survey-recommend-percent">0%</p></div></div>
+        <div class="card stat-card"><div class="stat-icon">A</div><div><h3>Asesores con encuestas</h3><p id="survey-advisor-count">0</p></div></div>
+      </div>
+
+      <div class="card dashboard-card survey-advisor-chart-card">
+        <span class="section-kicker">RESULTADOS POR ASESOR</span>
+        <h3>Satisfacción y encuestas registradas</h3>
+        <div id="survey-advisor-chart" class="survey-advisor-chart"></div>
+      </div>
+
+      <div class="card table-card">
+        <div class="card-heading table-heading">
+          <div><span class="section-kicker">DETALLE</span><h3>Respuestas de las encuestas</h3></div>
+          <span id="survey-result-count" class="result-count">0 resultados</span>
+        </div>
+        <div class="table-wrapper">
+          <table class="survey-report-table">
+            <thead>
+              <tr><th>Fecha</th><th>Asesor</th><th>Usuario</th><th>Q2 Servicio</th><th>Obs. Q2</th><th>Q3 Técnica</th><th>Obs. Q3</th><th>Q4 Administrativa</th><th>Obs. Q4</th><th>Q5 Agilidad</th><th>Q6 Recomienda</th><th>Q7 Recomendación / felicitación</th></tr>
+            </thead>
+            <tbody id="tabla-reporte-encuestas"></tbody>
+          </table>
+        </div>
+      </div>
     </section>
 
     <section id="vista-usuarios" class="view hidden">

@@ -389,3 +389,66 @@ tbody tr:last-child td { border-bottom: 0; }
 .update-banner.hidden{display:none}
 .update-banner button{background:#fff;color:#2f2440;border:0;border-radius:8px;padding:.4rem .9rem;font-weight:800;cursor:pointer}
 .update-banner button:hover{background:#f0edf6}
+
+
+/* =========================================================
+   MÓDULO DE ENCUESTAS - SATISFACCIÓN GRUPO TV MAX
+   ========================================================= */
+.survey-card{max-width:1100px}
+.survey-form{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.survey-form .form-group-wide{grid-column:1/-1}
+.survey-question{grid-column:1/-1;border:1px solid var(--gray-border);border-radius:16px;background:var(--gray-light);padding:18px}
+.survey-question>label{display:block;font-weight:700;color:var(--text-dark);line-height:1.45;margin-bottom:14px}
+.survey-options{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:10px}
+.survey-options-inline{grid-template-columns:repeat(2,minmax(120px,180px))}
+.survey-options label{display:flex;align-items:center;gap:9px;padding:11px 12px;border:1px solid var(--gray-border);border-radius:12px;background:#fff;cursor:pointer;transition:.18s ease}
+.survey-options label:hover{border-color:var(--purple-primary);transform:translateY(-1px)}
+.survey-options input{accent-color:var(--purple-primary);width:17px;height:17px}
+.survey-options input:checked+span{font-weight:700;color:var(--purple-primary-dark)}
+.survey-badge{padding:7px 11px;border-radius:999px;background:var(--purple-light);color:var(--purple-primary-dark);font-size:.82rem;font-weight:700}
+.survey-history-table td,.survey-history-table th{vertical-align:top}
+.survey-report-table{min-width:1500px}
+.survey-stats{margin-top:18px}
+.survey-advisor-chart-card{margin-top:18px}
+.survey-advisor-chart{display:flex;flex-direction:column;gap:14px;margin-top:16px}
+.survey-advisor-row{padding:12px 0;border-bottom:1px solid var(--gray-border)}
+.survey-advisor-row:last-child{border-bottom:0}
+.survey-advisor-head{display:flex;justify-content:space-between;gap:14px;margin-bottom:8px}
+.survey-advisor-head strong{color:var(--text-dark)}
+.survey-advisor-head span{color:var(--text-muted);font-size:.88rem}
+.survey-advisor-track{height:10px;border-radius:999px;background:var(--gray-light);overflow:hidden}
+.survey-advisor-track span{display:block;height:100%;border-radius:999px;background:var(--purple-primary)}
+.survey-print-sheet .print-table-section{margin-top:18px}
+.survey-print-distributions{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.survey-print-distributions>div{border:1px solid var(--gray-border);border-radius:12px;padding:12px}
+.survey-print-distributions h3{margin:0 0 10px;font-size:13px}
+.survey-print-distributions table{width:100%;border-collapse:collapse}
+.survey-print-distributions th,.survey-print-distributions td{padding:6px;border-bottom:1px solid var(--gray-border);text-align:left;font-size:11px}
+
+@media (max-width:800px){
+  .survey-form{grid-template-columns:1fr}
+  .survey-form .form-group-wide,.survey-question{grid-column:1}
+  .survey-options{grid-template-columns:1fr 1fr}
+  .survey-options-inline{grid-template-columns:1fr 1fr}
+  .survey-advisor-head{flex-direction:column;gap:4px}
+  .survey-print-distributions{grid-template-columns:1fr}
+}
+
+/* Meta mensual global del administrador */
+.admin-global-goal-card{background:linear-gradient(135deg,#fff 0%,#f7f3ff 100%);}
+.admin-global-goal-card h3{font-size:1.65rem;margin:.2rem 0 .35rem;color:var(--purple-dark);}
+.admin-goal-main-progress{height:14px;background:#e9e4f2;border-radius:999px;overflow:hidden;margin:1rem 0 .55rem;}
+.admin-goal-main-progress span{display:block;height:100%;width:0;background:var(--purple-primary);border-radius:999px;transition:width .3s ease;}
+.admin-goal-main-stats{display:flex;justify-content:space-between;gap:1rem;align-items:center;margin-bottom:.9rem;}
+.admin-goal-main-stats strong{font-size:1.05rem;color:var(--purple-dark);}
+.admin-goal-main-stats span{font-size:.78rem;color:var(--text-muted);}
+.admin-goal-breakdown{display:grid;gap:.35rem;max-height:180px;overflow:auto;padding-right:4px;}
+.admin-goal-breakdown-row{display:grid;grid-template-columns:1fr auto 42px;gap:.6rem;align-items:center;font-size:.76rem;padding:.35rem .45rem;border-radius:8px;background:rgba(255,255,255,.72);}
+.admin-goal-breakdown-row strong{color:var(--purple-dark);}
+.admin-goal-breakdown-row small{text-align:right;color:var(--text-muted);}
+.print-admin-goal-card small{display:block;margin-top:4px;color:#6f687d;font-size:9px;}
+.print-admin-goal-bar{height:12px;background:#eeeaf5;border-radius:999px;overflow:hidden;margin:8px 0;}
+.print-admin-goal-bar>div{height:100%;}
+.print-admin-goal-bar span{display:block;height:100%;background:#8b5cf6;border-radius:999px;}
+.print-meta-note{font-size:10px;color:#6f687d;margin:7px 0 10px;line-height:1.45;}
+@media(max-width:720px){.admin-goal-main-stats{align-items:flex-start;flex-direction:column;gap:.25rem}.admin-goal-breakdown-row{grid-template-columns:1fr auto 38px}}
