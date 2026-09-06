@@ -198,6 +198,7 @@
       <div class="stats-grid admin-stats">
         <div class="card stat-card"><div class="stat-icon">#</div><div><h3>Operaciones</h3><p id="dash-total">0</p></div></div>
         <div class="card stat-card"><div class="stat-icon">V</div><div><h3>Ventas</h3><p id="dash-ventas">0</p></div></div>
+        <div class="card stat-card"><div class="stat-icon">R</div><div><h3>Reconexiones</h3><p id="dash-reconexiones">0</p></div></div>
         <div class="card stat-card"><div class="stat-icon">!</div><div><h3>Pendientes</h3><p id="dash-pendientes">0</p></div></div>
         <div class="card stat-card"><div class="stat-icon">✓</div><div><h3>Realizadas</h3><p id="dash-realizadas">0</p></div></div>
         <div class="card stat-card"><div class="stat-icon">✕</div><div><h3>Canceladas</h3><p id="dash-canceladas">0</p></div></div>
@@ -205,7 +206,7 @@
       <div class="dashboard-grid">
         <div class="card dashboard-card admin-global-goal-card">
           <span class="section-kicker">META DEL ADMINISTRADOR</span>
-          <h3 id="dash-admin-goal-title">0 / 0 ventas</h3>
+          <h3 id="dash-admin-goal-title">0 / 0 operaciones</h3>
           <p id="dash-admin-goal-period" class="muted">Meta mensual del equipo.</p>
           <div class="admin-goal-main-progress"><span id="dash-admin-goal-bar"></span></div>
           <div class="admin-goal-main-stats"><strong id="dash-admin-goal-percent">0%</strong><span id="dash-admin-goal-detail">0 ventas realizadas de 0</span></div>
@@ -220,7 +221,18 @@
       <div class="page-heading"><div><span class="eyebrow">OPERACIONES</span><h2>Gestión de instalaciones</h2><p>Actualiza el estado de las operaciones y administra el seguimiento.</p></div></div>
       <div class="card filters-card"><div class="card-heading"><div><span class="section-kicker">REPORTES</span><h3>Filtros de consulta</h3></div><div class="filter-actions"><button id="btn-clear-filters" class="btn-secondary" type="button">Limpiar filtros</button><button id="btn-preview-report" class="btn-secondary" type="button">👁 Vista previa</button><button id="btn-print-report" class="btn-primary" type="button">🖨 Imprimir</button><button id="btn-pdf-report" class="btn-primary" type="button">📄 Descargar PDF</button><button id="btn-excel-report" class="btn-secondary" type="button">📊 Descargar Excel</button></div></div><div class="filters-grid">
         <div class="form-group"><label for="filtroAdminTexto">Buscar</label><input id="filtroAdminTexto" type="search" placeholder="Cliente, servicio, descripción..."></div>
-        <div class="form-group"><label for="filtroAsesorAdmin">Asesor</label><select id="filtroAsesorAdmin"><option value="">Todos los asesores</option></select></div>
+        <div class="form-group"><label>Asesor</label>
+          <div class="multi-select" id="filtroAsesorAdminWrap">
+            <button type="button" class="multi-select-toggle" id="filtroAsesorAdminBtn">Todos los asesores</button>
+            <div class="multi-select-panel hidden" id="filtroAsesorAdminPanel">
+              <div class="multi-select-actions">
+                <button type="button" id="filtroAsesorAdminAll">Seleccionar todos</button>
+                <button type="button" id="filtroAsesorAdminClear">Limpiar</button>
+              </div>
+              <div class="multi-select-options" id="filtroAsesorAdminOptions"></div>
+            </div>
+          </div>
+        </div>
         <div class="form-group"><label for="filtroEstadoAdmin">Estado</label><select id="filtroEstadoAdmin"><option value="">Todos</option><option value="PENDIENTE">Pendientes</option><option value="REALIZADA">Realizadas</option><option value="CANCELADA">Canceladas</option></select></div>
         <div class="form-group"><label for="filtroTipoAdmin">Operación</label><select id="filtroTipoAdmin"><option value="">Todas</option><option value="Venta">Ventas</option><option value="Reconexión">Reconexiones</option><option value="Otros">Otros</option></select></div>
         <div class="form-group"><label for="filtroServicioAdmin">Servicio</label><select id="filtroServicioAdmin"><option value="">Todos</option><option value="Internet">Internet</option><option value="TV">TV</option><option value="Combo">Combo</option><option value="Otros">Otros</option></select></div>
@@ -318,6 +330,7 @@
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="js/app.js"></script>
 <script>
   if ('serviceWorker' in navigator) {
