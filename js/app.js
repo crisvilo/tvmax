@@ -200,9 +200,7 @@
       <td>${escapeHTML(s.q3_tecnica||"—")}</td>
       <td>${escapeHTML(s.q4_administrativa||"—")}</td>
       <td>${escapeHTML(s.q5_agilidad||"—")}</td>
-      <td>${escapeHTML(s.observacion_q5||"—")}</td>
       <td>${escapeHTML(s.q6_recomendaria||"—")}</td>
-      <td>${escapeHTML(s.observacion_q6||"—")}</td>
       <td>${escapeHTML(s.q7_recomendacion||"—")}</td>
     </tr>`).join(""):`<tr class="empty-row"><td colspan="10">Aún no has registrado encuestas.</td></tr>`;
   }
@@ -551,7 +549,7 @@
   function serviceBadge(s){return `<span class="badge badge-service">${escapeHTML(s||"Otros")}</span>`;}
   function formatDate(d){if(!d)return "—";const p=d.split("-");return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:escapeHTML(d);}
   function setTodayDefault(){const x=id("fechaVenta");if(x&&!x.value)x.value=getTodayISO();}function getTodayISO(){const n=new Date(),o=n.getTimezoneOffset(),l=new Date(n.getTime()-o*60000);return l.toISOString().slice(0,10);}
-  function value(x){return id(x).value.trim();}function id(x){return document.getElementById(x);}function setText(x,v){if(id(x))id(x).textContent=v;}
+  function value(x){const el=id(x);return el&&typeof el.value==="string"?el.value.trim():"";}function id(x){return document.getElementById(x);}function setText(x,v){if(id(x))id(x).textContent=v;}
   function escapeHTML(v){return String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");}
   async function downloadBackup(){
     const btn=id("btn-download-backup"),status=id("backup-status");
