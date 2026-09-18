@@ -59,7 +59,7 @@
     </section>
 
     <section id="vista-asesor" class="view hidden">
-      <div class="page-heading"><div><span class="eyebrow">DASHBOARD ASESOR</span><h2>Mi resumen comercial</h2><p id="asesor-welcome">Consulta tus ventas y el avance de tu meta mensual.</p></div><button id="btn-refresh-advisor-dashboard" type="button" class="btn-secondary">↻ Actualizar</button></div>
+      <div class="page-heading"><div><span class="eyebrow">DASHBOARD ASESOR</span><h2>Mi resumen comercial</h2><p id="asesor-welcome">Consulta tus ventas y el avance de tu meta mensual.</p></div></div>
       <div class="stats-grid">
         <div class="card stat-card"><div class="stat-icon">#</div><div><h3>Total operaciones</h3><p id="asesor-total-count">0</p></div></div>
         <div class="card stat-card"><div class="stat-icon">V</div><div><h3>Ventas</h3><p id="asesor-ventas-count">0</p></div></div>
@@ -81,7 +81,7 @@
         </form>
       </div>
 
-      <div class="card table-card"><div class="card-heading table-heading"><div><span class="section-kicker">HISTORIAL</span><h3>Mis operaciones</h3></div><div class="table-tools"><input id="filtroAsesor" type="search" placeholder="Buscar cliente, código, servicio o zona..."><button id="btn-asesor-report" class="btn-secondary" type="button">👁 Ver mi reporte</button><button id="btn-asesor-print" class="btn-secondary" type="button">🖨 Imprimir</button><button id="btn-asesor-pdf" class="btn-primary" type="button">📄 Descargar PDF</button></div></div><div class="table-wrapper"><table><thead><tr><th>ID</th><th>Tipo</th><th>Cliente</th><th>Servicio</th><th>Descripción</th><th>Zona</th><th>Fecha</th><th>Estado</th><th>Instalación</th></tr></thead><tbody id="tabla-asesor"></tbody></table></div></div>
+      <div class="card table-card"><div class="card-heading table-heading"><div><span class="section-kicker">HISTORIAL</span><h3>Mis operaciones</h3></div><div class="table-tools"><input id="filtroAsesor" type="search" placeholder="Buscar cliente, código, servicio o zona..."><input id="filtroAsesorDesde" type="date" title="Desde"><input id="filtroAsesorHasta" type="date" title="Hasta"><button id="btn-asesor-report" class="btn-secondary" type="button">👁 Ver mi reporte</button><button id="btn-asesor-print" class="btn-secondary" type="button">🖨 Imprimir</button><button id="btn-asesor-pdf" class="btn-primary" type="button">📄 Descargar PDF</button><button id="btn-asesor-excel" class="btn-secondary" type="button">📊 Excel</button></div></div><div class="table-wrapper"><table><thead><tr><th>ID</th><th>Tipo</th><th>Cliente</th><th>Servicio</th><th>Descripción</th><th>Zona</th><th>Fecha</th><th>Estado</th><th>Instalación</th></tr></thead><tbody id="tabla-asesor"></tbody></table></div></div>
     </section>
 
 
@@ -195,7 +195,7 @@
     </section>
 
     <section id="admin-dashboard" class="view hidden">
-      <div class="page-heading"><div><span class="eyebrow">ADMINISTRACIÓN</span><h2>Dashboard general</h2><p>Visión global mensual de operaciones, instalaciones y cumplimiento comercial.</p></div><button id="btn-refresh-dashboard" type="button" class="btn-secondary">↻ Actualizar</button></div>
+      <div class="page-heading"><div><span class="eyebrow">ADMINISTRACIÓN</span><h2>Dashboard general</h2><p>Visión global de operaciones, instalaciones y cumplimiento comercial.</p></div></div>
       <div class="stats-grid admin-stats">
         <div class="card stat-card"><div class="stat-icon">#</div><div><h3>Operaciones</h3><p id="dash-total">0</p></div></div>
         <div class="card stat-card"><div class="stat-icon">V</div><div><h3>Ventas</h3><p id="dash-ventas">0</p></div></div>
@@ -303,9 +303,9 @@
     </section>
 
     <section id="vista-usuarios" class="view hidden">
-      <div class="page-heading"><div><span class="eyebrow">ADMINISTRACIÓN</span><h2>Usuarios y asesores</h2><p>Consulta primero el total y busca solo el asesor que necesites.</p></div></div>
+      <div class="page-heading"><div><span class="eyebrow">ADMINISTRACIÓN</span><h2>Usuarios y asesores</h2><p>Crea, edita, actualiza, inhabilita o elimina asesores.</p></div></div>
       <div class="card form-card"><div class="card-heading"><div><span class="section-kicker">NUEVO ASESOR</span><h3>Crear asesor</h3></div></div><form id="admin-user-form" class="register-grid"><input type="hidden" id="admin-user-id"><div class="form-group"><label for="admin-user-nombre">Nombre *</label><input id="admin-user-nombre" required></div><div class="form-group"><label for="admin-user-apellido">Apellido *</label><input id="admin-user-apellido" required></div><div class="form-group"><label for="admin-user-documento">Documento</label><input id="admin-user-documento"></div><div class="form-group"><label for="admin-user-telefono">Teléfono</label><input id="admin-user-telefono"></div><div class="form-group"><label for="admin-user-zona">Zona *</label><input id="admin-user-zona" required></div><div class="form-group"><label for="admin-user-email">Correo *</label><input id="admin-user-email" type="email" required></div><div class="form-group"><label for="admin-user-password">Contraseña</label><input id="admin-user-password" type="password" minlength="6" placeholder="Solo al crear"></div><div class="form-group"><label for="admin-user-meta">Meta mensual</label><input id="admin-user-meta" type="number" min="1" value="50"></div><div class="form-actions form-actions-wide"><button id="btn-cancel-user-edit" class="btn-secondary hidden" type="button">Cancelar edición</button><button id="btn-save-user" class="btn-primary" type="submit">Crear asesor</button></div></form></div>
-      <div class="card table-card"><div class="card-heading table-heading"><div><span class="section-kicker">USUARIOS</span><h3>Asesores registrados</h3></div><div class="table-tools"><span id="advisor-count" class="result-count">0 asesores</span><input id="filtro-asesor-usuarios" type="search" placeholder="Buscar nombre, correo o documento..." aria-label="Buscar asesor"></div></div><div class="table-wrapper"><table class="users-table"><thead><tr><th>Asesor</th><th>Correo</th><th>Zona</th><th>Meta</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="tabla-usuarios"></tbody></table></div></div>
+      <div class="card table-card"><div class="card-heading"><div><span class="section-kicker">USUARIOS</span><h3>Asesores registrados</h3></div></div><div class="table-wrapper"><table class="users-table"><thead><tr><th>Asesor</th><th>Correo</th><th>Zona</th><th>Meta</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="tabla-usuarios"></tbody></table></div></div>
     </section>
 
     <section id="vista-configuracion" class="view hidden">
