@@ -70,6 +70,8 @@
 
   // Cache ligero: memoria + localStorage. Los datos se separan por usuario y fecha.
   const CACHE_TTL = 5 * 60 * 1000;
+  // Cuántas encuestas recientes trae el reporte cuando no hay ningún filtro aplicado.
+  const SURVEY_REPORT_RECENT_LIMIT = 50;
   const memoryCache = new Map();
   const pendingCache = new Map();
   function cacheGet(key){
@@ -81,7 +83,7 @@
   function cacheInvalidate(prefix){for(const key of memoryCache.keys())if(key.startsWith(prefix))memoryCache.delete(key);try{for(let i=localStorage.length-1;i>=0;i--){const k=localStorage.key(i)||'';if(k.startsWith(`tvmax-cache:${prefix}`))localStorage.removeItem(k);}}catch(e){}}
   async function cachedQuery(key,queryFn){const cached=cacheGet(key);if(cached!==null)return cached;if(pendingCache.has(key))return pendingCache.get(key);const promise=(async()=>{const data=await queryFn();cacheSet(key,data);return data;})().finally(()=>pendingCache.delete(key));pendingCache.set(key,promise);return promise;}
   function monthStartISO(){const n=new Date();return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-01`;}
-  let currentUser = null, currentProfile = null, sales = [], advisors = [], surveys = [], config = { color_principal: "#8b5cf6", logo_url: "" };
+  let currentUser = null, currentProfile = null, sales = [], advisors = [], surveys = [], surveyReportData = [], config = { color_principal: "#8b5cf6", logo_url: "" };
   let initializingUserId = null;
   let salesRealtimeChannel = null;
   let adminMonthlySales = [];
@@ -98,7 +100,7 @@
     const { data: { session } } = await sbClient.auth.getSession();
     if (session?.user) await initializeSession(session.user);
     sbClient.auth.onAuthStateChange(async (event, session) => {
-      if (event === "SIGNED_OUT") { if(salesRealtimeChannel){sbClient.removeChannel(salesRealtimeChannel);salesRealtimeChannel=null;} currentUser = null; currentProfile = null; sales = []; advisors = []; surveys = []; showAuthView(); return; }
+      if (event === "SIGNED_OUT") { if(salesRealtimeChannel){sbClient.removeChannel(salesRealtimeChannel);salesRealtimeChannel=null;} currentUser = null; currentProfile = null; sales = []; advisors = []; surveys = []; surveyReportData = []; showAuthView(); return; }
       if (session?.user && event !== "INITIAL_SESSION") await initializeSession(session.user);
     });
   });
@@ -109,7 +111,7 @@
     id("btn-back-login").addEventListener("click", showAuthView); id("btn-logout").addEventListener("click", logout);
     id("btn-menu").addEventListener("click", () => id("sidebar").classList.toggle("open")); id("btn-close-menu").addEventListener("click", closeSidebar);
     id("filtroAsesor").addEventListener("input", renderAdvisorTable);
-    ["filtroAsesorDesde","filtroAsesorHasta"].forEach(x=>{id(x)?.addEventListener("change",()=>{loadAdvisorSalesForFilters(true).catch(e=>console.warn("No fue posible cargar el periodo del asesor",e));});});
+    ["filtroAsesorDesde","filtroAsesorHasta"].forEach(x=>{id(x)?.addEventListener("change",()=>{loadAdvisorSalesForFilters(true).catch(e=>{console.error("No fue posible cargar el periodo del asesor",e);showToast("No fue posible cargar las operaciones del periodo.",true);});});});
     id("filtro-asesor-usuarios")?.addEventListener("input", debounce(searchAdvisor,350));
     id("btn-refresh-dashboard")?.addEventListener("click", async()=>{cacheInvalidate(`dashboard:tvmax:${currentUser?.id||""}:`);cacheInvalidate(`sales:tvmax:admin:${getTodayISO()}`);cacheInvalidate(`admin-goal-sales:tvmax:${monthStartISO()}`);adminReportSales=null;await loadAdminData();showToast("Dashboard actualizado.");});
     id("btn-refresh-advisor-dashboard")?.addEventListener("click", async()=>{cacheInvalidate(`dashboard:tvmax:${currentUser?.id||""}:`);cacheInvalidate(`sales:tvmax:${currentUser?.id||""}:${getTodayISO()}`);cacheInvalidate(`surveys:tvmax:${currentUser?.id||""}:${getTodayISO()}`);await loadAdvisorData();showToast("Resumen mensual actualizado.");});
@@ -123,10 +125,15 @@
     id("admin-user-form").addEventListener("submit", saveAdminUser); id("btn-cancel-user-edit").addEventListener("click", resetUserForm);
     id("config-form").addEventListener("submit", saveConfig); id("btn-remove-logo").addEventListener("click", removeLogo);
     id("btn-asesor-report").addEventListener("click", previewAdvisorReport); id("btn-asesor-print").addEventListener("click", printAdvisorReport); id("btn-asesor-pdf").addEventListener("click", downloadAdvisorPDF); id("btn-asesor-excel")?.addEventListener("click", downloadAdvisorExcel);
+    id("btn-asesor-limpiar")?.addEventListener("click",()=>{["filtroAsesor","filtroAsesorDesde","filtroAsesorHasta"].forEach(k=>{const el=id(k);if(el)el.value="";});advisorReportSales=null;advisorReportLoadedKey=null;renderAdvisorTable();});
     id("survey-form").addEventListener("submit", registerSurvey);
     ensureSurveyZoneFilter();
-    ["filtroEncuestaTexto","filtroEncuestaAsesor","filtroEncuestaQ6","filtroEncuestaZona"].forEach(x=>{id(x)?.addEventListener("input",renderSurveyReport);id(x)?.addEventListener("change",renderSurveyReport);});
-    ["filtroEncuestaDesde","filtroEncuestaHasta"].forEach(x=>{id(x)?.addEventListener("change",()=>{loadSurveyReportData(true).catch(e=>console.warn("No fue posible actualizar el rango de encuestas",e));});});
+    let surveyFilterTimer=null;
+    ["filtroEncuestaTexto","filtroEncuestaAsesor","filtroEncuestaQ6","filtroEncuestaZona"].forEach(x=>{
+      id(x)?.addEventListener("input",()=>{clearTimeout(surveyFilterTimer);surveyFilterTimer=setTimeout(()=>loadSurveyReportData(true).catch(e=>{console.error("No fue posible actualizar el informe de encuestas",e);showToast("No fue posible aplicar el filtro de encuestas.",true);}),350);});
+      id(x)?.addEventListener("change",()=>loadSurveyReportData(true).catch(e=>{console.error("No fue posible actualizar el informe de encuestas",e);showToast("No fue posible aplicar el filtro de encuestas.",true);}));
+    });
+    ["filtroEncuestaDesde","filtroEncuestaHasta"].forEach(x=>{id(x)?.addEventListener("change",()=>{loadSurveyReportData(true).catch(e=>{console.error("No fue posible actualizar el rango de encuestas",e);showToast("No fue posible aplicar el rango de fechas.",true);});});});
     id("btn-clear-survey-filters").addEventListener("click",clearSurveyFilters);
     id("btn-preview-survey-report").addEventListener("click",()=>previewReport(buildSurveyReportHTML));
     id("btn-print-survey-report").addEventListener("click",()=>printReport(buildSurveyReportHTML));
@@ -183,7 +190,7 @@
     if(vr.error){console.error(vr.error);return null;}
     const rows=vr.data||[], profiles=ar.data||[];
     const services={}; rows.forEach(x=>{if(x.servicio)services[x.servicio]=(services[x.servicio]||0)+1;});
-    const result={total:rows.length,ventas:rows.filter(x=>x.tipo_operacion==="Venta").length,reconexiones:rows.filter(x=>x.tipo_operacion==="Reconexión").length,pendientes:rows.filter(x=>x.estado_instalacion==="PENDIENTE").length,realizadas:rows.filter(x=>x.estado_instalacion==="REALIZADA").length,canceladas:rows.filter(x=>x.estado_instalacion==="CANCELADA").length,servicios,asesores:profiles.map(a=>({id:a.id,nombre:a.nombre,apellido:a.apellido,email:a.email,meta:Number(a.meta_mensual)||50,realizadas:rows.filter(x=>x.asesor_id===a.id&&(x.tipo_operacion==="Venta"||x.tipo_operacion==="Reconexión")).length}))};
+    const result={total:rows.length,ventas:rows.filter(x=>x.tipo_operacion==="Venta").length,reconexiones:rows.filter(x=>x.tipo_operacion==="Reconexión").length,pendientes:rows.filter(x=>x.estado_instalacion==="PENDIENTE").length,realizadas:rows.filter(x=>x.estado_instalacion==="REALIZADA").length,canceladas:rows.filter(x=>x.estado_instalacion==="CANCELADA").length,servicios:services,asesores:profiles.map(a=>({id:a.id,nombre:a.nombre,apellido:a.apellido,email:a.email,meta:Number(a.meta_mensual)||50,realizadas:rows.filter(x=>x.asesor_id===a.id&&(x.tipo_operacion==="Venta"||x.tipo_operacion==="Reconexión")).length}))};
     cacheSet(key,result);return result;
   }
   async function loadTodaySalesData(){const today=getTodayISO(),uid=currentUser.id;const [sr,qr,dashboard]=await Promise.all([
@@ -361,7 +368,7 @@
 
   function surveyReportPeople(){
     const map=new Map(advisors.map(a=>[a.id,a]));
-    surveys.forEach(s=>{if(s.perfiles?.id&&!map.has(s.perfiles.id))map.set(s.perfiles.id,s.perfiles);});
+    surveyReportData.forEach(s=>{if(s.perfiles?.id&&!map.has(s.perfiles.id))map.set(s.perfiles.id,s.perfiles);});
     const people=[...map.values()];
     if(currentProfile?.rol==="administrador" && currentProfile?.id && !people.some(p=>p.id===currentProfile.id)){people.push({...currentProfile});}
     return people;
@@ -381,13 +388,14 @@
     const zone=value("filtroEncuestaZona");
     const from=value("filtroEncuestaDesde");
     const to=value("filtroEncuestaHasta");
-    return surveys.filter(s=>{
+    return surveyReportData.filter(s=>{
       const a=s.perfiles||{};
       const name=[a.nombre,a.apellido].filter(Boolean).join(" ");
       const matchesText=!text||[s.codigo_nombre_usuario,s.q2_servicio,s.q3_tecnica,s.q4_administrativa,s.q5_agilidad,s.q6_recomendaria,s.q7_recomendacion,name].join(" ").toLowerCase().includes(text);
       const matchesAdvisor=!advisor||s.asesor_id===advisor;
       const matchesRecommend=!recommend||s.q6_recomendaria===recommend;
-      const matchesZone=!zone||String(s.perfiles?.zona||"")===zone;
+      const rawZone=String(s.perfiles?.zona||"").trim().toUpperCase();
+      const matchesZone=!zone||rawZone===zone.toUpperCase()||(zone==="BUENAVISTA"&&rawZone.includes("BUENAVISTA"))||(zone==="LA APARTADA"&&rawZone.includes("LA APARTADA"));
       const matchesFrom=!from||String(s.fecha_encuesta||"")>=from;
       const matchesTo=!to||String(s.fecha_encuesta||"")<=to;
       return matchesText&&matchesAdvisor&&matchesRecommend&&matchesZone&&matchesFrom&&matchesTo;
@@ -395,13 +403,17 @@
   }
 
   function renderSurveyReport(){
-    const list=getFilteredSurveys(),tabla=id("tabla-reporte-encuestas"); if(!tabla)return;
+    const list=getFilteredSurveys(),total=list.length,tabla=id("tabla-reporte-encuestas"); if(!tabla)return;
     setText("survey-result-count",`${list.length} resultado${list.length===1?"":"s"}`);
     setText("survey-total-count",list.length);
     const yes=list.filter(s=>s.q6_recomendaria==="SI").length;
     setText("survey-recommend-percent",`${list.length?Math.round(yes/list.length*100):0}%`);
     const advisorIds=new Set(list.map(s=>s.asesor_id).filter(Boolean));
     setText("survey-advisor-count",advisorIds.size);
+    // Promedio de la calificación de servicio (q2) sobre escala 1-5.
+    const escala={"MUY MALO":1,"MALO":2,"REGULAR":3,"BUENO":4,"EXCELENTE":5};
+    const notas=list.map(s=>escala[String(s.q2_servicio||"").trim().toUpperCase()]).filter(n=>typeof n==="number");
+    setText("survey-service-average",notas.length?`${(notas.reduce((a,b)=>a+b,0)/notas.length).toFixed(1)} / 5`:"—");
     const reportPeople=surveyReportPeople();
     id("survey-advisor-chart").innerHTML=reportPeople.length?reportPeople.map(a=>{
       const rows=list.filter(s=>s.asesor_id===a.id), yesA=rows.filter(s=>s.q6_recomendaria==="SI").length;
@@ -409,9 +421,9 @@
       const name=[a.nombre,a.apellido].filter(Boolean).join(" ")||a.email||"Asesor";
       return `<div class="survey-advisor-row"><div class="survey-advisor-head"><strong>${escapeHTML(name)}</strong><span>${rows.length} encuesta${rows.length===1?"":"s"} · ${pct}% recomienda</span></div><div class="survey-advisor-track"><span style="width:${pct}%"></span></div></div>`;
     }).join(""):'<p class="muted">No hay asesores registrados.</p>';
-    const zoneCounts={};list.forEach(s=>{const z=s.perfiles?.zona||"Sin zona";zoneCounts[z]=(zoneCounts[z]||0)+1;});
-    const zoneSummary=Object.entries(zoneCounts).sort((a,b)=>b[1]-a[1]).map(([z,n])=>`<div class="survey-advisor-row"><div class="survey-advisor-head"><strong>${escapeHTML(z)}</strong><span>${n} encuesta${n===1?"":"s"}</span></div><div class="survey-advisor-track"><span style="width:${total?Math.round(n/total*100):0}%"></span></div></div>`).join("")||'<p class="muted">No hay datos por zona.</p>';
-    id("survey-advisor-chart").insertAdjacentHTML("beforeend",`<div class="survey-zone-summary"><span class="section-kicker">POR ZONA</span><h3>Encuestas realizadas por zona</h3>${zoneSummary}</div>`);
+    const zoneCounts={"CAUCASIA":0,"MONTELIBANO":0,"LA APARTADA":0,"BUENAVISTA":0,"SAN MARCOS":0};let sharedZoneCount=0;list.forEach(s=>{const z=String(s.perfiles?.zona||"").trim().toUpperCase();if(z.includes("CAUCASIA"))zoneCounts.CAUCASIA++;else if(z.includes("MONTELIBANO"))zoneCounts.MONTELIBANO++;else if(z==="BUENAVISTA LA APARTADA"||z==="LA APARTADA BUENAVISTA")sharedZoneCount++;else if(z.includes("LA APARTADA"))zoneCounts["LA APARTADA"]++;else if(z.includes("BUENAVISTA"))zoneCounts.BUENAVISTA++;else if(z.includes("SAN MARCOS"))zoneCounts["SAN MARCOS"]++;});
+    const zoneSummary=Object.entries(zoneCounts).map(([z,n])=>`<div class="survey-advisor-row"><div class="survey-advisor-head"><strong>${escapeHTML(z)}</strong><span>${n} encuesta${n===1?"":"s"}</span></div><div class="survey-advisor-track"><span style="width:${total?Math.round(n/total*100):0}%"></span></div></div>`).join("")||'<p class="muted">No hay datos por zona.</p>';
+    id("survey-advisor-chart").insertAdjacentHTML("beforeend",`<div class="survey-zone-summary"><span class="section-kicker">POR ZONA</span><h3>Encuestas realizadas por zona</h3>${zoneSummary}${sharedZoneCount?`<p class="muted">${sharedZoneCount} encuesta${sharedZoneCount===1?"":"s"} pertenece${sharedZoneCount===1?"":"n"} a asesores registrados con zona compartida <strong>BUENAVISTA LA APARTADA</strong>; no se puede repartir entre ambas oficinas sin un dato de oficina en la encuesta.</p>`:""}</div>`);
     tabla.innerHTML=list.length?list.map(s=>{
       const a=s.perfiles||{},name=[a.nombre,a.apellido].filter(Boolean).join(" ")||a.email||"—";
       return `<tr><td>${formatDate(s.fecha_encuesta)}</td><td>${escapeHTML(name)}</td><td>${escapeHTML(s.perfiles?.zona||"—")}</td><td>${escapeHTML(s.codigo_nombre_usuario||"—")}</td><td>${escapeHTML(s.q2_servicio||"—")}</td><td>${escapeHTML(s.observacion_q2||"—")}</td><td>${escapeHTML(s.q3_tecnica||"—")}</td><td>${escapeHTML(s.observacion_q3||"—")}</td><td>${escapeHTML(s.q4_administrativa||"—")}</td><td>${escapeHTML(s.observacion_q4||"—")}</td><td>${escapeHTML(s.q5_agilidad||"—")}</td><td>${escapeHTML(s.q6_recomendaria||"—")}</td><td>${escapeHTML(s.q7_recomendacion||"—")}</td></tr>`;
@@ -420,7 +432,7 @@
 
   function clearSurveyFilters(){
     ["filtroEncuestaTexto","filtroEncuestaAsesor","filtroEncuestaQ6","filtroEncuestaZona","filtroEncuestaDesde","filtroEncuestaHasta"].forEach(x=>{if(id(x))id(x).value="";});
-    loadSurveyReportData(true).catch(e=>console.warn("No fue posible restablecer el reporte de encuestas",e));
+    loadSurveyReportData(true).catch(e=>{console.error("No fue posible restablecer el reporte de encuestas",e);showToast("No fue posible restablecer el reporte de encuestas.",true);});
   }
 
   function buildSurveyReportHTML(){
@@ -565,16 +577,98 @@
   }
 
   async function loadSurveyReportData(force=false){
-    if(!currentUser)return;
-    const from=value("filtroEncuestaDesde")||monthStartISO();
-    const to=value("filtroEncuestaHasta")||todayISO();
-    const key=`survey-report:tvmax:${from}:${to}`;
-    if(!force&&surveyReportLoadedKey===key&&surveys.length)return;
+    // El reporte de encuestas es administrativo. Sin filtros se muestran
+    // únicamente las últimas 10 encuestas ya cargadas por el dashboard.
+    // Cuando el usuario aplica cualquier filtro, se consulta Supabase para
+    // obtener el histórico correspondiente, sin descargarlo de entrada.
+    if(!currentUser||currentProfile?.rol!=="administrador")return;
+
+    const textFilter=value("filtroEncuestaTexto").trim();
+    const advisorFilter=value("filtroEncuestaAsesor");
+    const recommendFilter=value("filtroEncuestaQ6");
+    const zoneFilter=value("filtroEncuestaZona");
+    const from=value("filtroEncuestaDesde");
+    const to=value("filtroEncuestaHasta");
+    const hasFilter=Boolean(textFilter||advisorFilter||recommendFilter||zoneFilter||from||to);
+
+    // Estado inicial: últimas encuestas registradas, sin importar la fecha.
+    // (Antes se reutilizaban sólo las de HOY que trae el dashboard, por lo que
+    //  el reporte aparecía completamente en 0 cualquier día sin encuestas.)
+    if(!hasFilter){
+      const recentKey="survey-report-recent:tvmax:v2";
+      let rows=await cachedQuery(recentKey,async()=>{
+        const r=await sbClient.from("encuestas")
+          .select("id,asesor_id,codigo_nombre_usuario,q2_servicio,observacion_q2,q3_tecnica,observacion_q3,q4_administrativa,observacion_q4,q5_agilidad,observacion_q5,q6_recomendaria,observacion_q6,q7_recomendacion,fecha_encuesta,created_at,updated_at")
+          .order("fecha_encuesta",{ascending:false}).order("id",{ascending:false}).limit(SURVEY_REPORT_RECENT_LIMIT);
+        if(r.error)throw r.error;
+        return r.data||[];
+      });
+      if(!Array.isArray(rows))rows=[];
+      const ids=[...new Set(rows.map(s=>s.asesor_id).filter(Boolean))];
+      let profiles=[];
+      if(ids.length){
+        const profileKey=`survey-report-recent-profiles:tvmax:${ids.slice().sort().join(",")}`;
+        profiles=await cachedQuery(profileKey,async()=>{
+          const r=await sbClient.from("perfiles").select("id,nombre,apellido,email,zona,activo,rol").in("id",ids);
+          if(r.error)throw r.error;
+          return r.data||[];
+        });
+      }
+      const profileMap=new Map(profiles.map(p=>[p.id,p]));
+      surveyReportData=rows.map(s=>({...s,perfiles:s.perfiles||profileMap.get(s.asesor_id)||null}));
+      surveyReportLoadedKey="recent-10";
+      populateSurveyZoneFilter();
+      populateSurveyAdvisorFilter();
+      renderSurveyReport();
+      return;
+    }
+
+    const key=`survey-report:tvmax:${textFilter.toLowerCase()}:${advisorFilter}:${recommendFilter}:${zoneFilter}:${from||"all"}:${to||"all"}`;
+    if(!force&&surveyReportLoadedKey===key)return;
     if(surveyReportLoading&&!force)return surveyReportLoading;
+
     surveyReportLoading=(async()=>{
-      const r=await sbClient.from("encuestas").select("id,asesor_id,codigo_nombre_usuario,q2_servicio,observacion_q2,q3_tecnica,observacion_q3,q4_administrativa,observacion_q4,q5_agilidad,observacion_q5,q6_recomendaria,observacion_q6,q7_recomendacion,fecha_encuesta,created_at,updated_at,perfiles:asesor_id(id,nombre,apellido,email,zona,activo,rol)").gte("fecha_encuesta",from).lte("fecha_encuesta",to).order("id",{ascending:false});
+      let advisorIds=null;
+
+      // Zona se resuelve primero contra perfiles porque la zona pertenece al asesor.
+      if(zoneFilter){
+        let zoneQuery=sbClient.from("perfiles").select("id").eq("rol","asesor");
+        if(zoneFilter==="BUENAVISTA")zoneQuery=zoneQuery.ilike("zona","%BUENAVISTA%");
+        else if(zoneFilter==="LA APARTADA")zoneQuery=zoneQuery.ilike("zona","%LA APARTADA%");
+        else zoneQuery=zoneQuery.ilike("zona",`%${zoneFilter}%`);
+        const zr=await zoneQuery;
+        if(zr.error)throw zr.error;
+        advisorIds=(zr.data||[]).map(x=>x.id);
+        if(!advisorIds.length){surveyReportData=[];surveyReportLoadedKey=key;renderSurveyReport();return;}
+      }
+
+      let q=sbClient.from("encuestas").select("id,asesor_id,codigo_nombre_usuario,q2_servicio,observacion_q2,q3_tecnica,observacion_q3,q4_administrativa,observacion_q4,q5_agilidad,observacion_q5,q6_recomendaria,observacion_q6,q7_recomendacion,fecha_encuesta,created_at,updated_at").order("id",{ascending:false});
+      if(from)q=q.gte("fecha_encuesta",from);
+      if(to)q=q.lte("fecha_encuesta",to);
+      if(advisorFilter)q=q.eq("asesor_id",advisorFilter);
+      if(advisorIds)q=q.in("asesor_id",advisorIds);
+      if(recommendFilter)q=q.eq("q6_recomendaria",recommendFilter);
+      if(textFilter)q=q.ilike("codigo_nombre_usuario",`%${textFilter.replace(/[%_]/g," ")}%`);
+
+      const r=await q;
       if(r.error)throw r.error;
-      surveys=r.data||[];surveyReportLoadedKey=key;populateSurveyZoneFilter();populateSurveyAdvisorFilter();renderSurveyReport();
+      const rows=r.data||[];
+      const ids=[...new Set(rows.map(s=>s.asesor_id).filter(Boolean))];
+      let profiles=[];
+      if(ids.length){
+        const profileKey=`survey-report-profiles:tvmax:${ids.slice().sort().join(",")}`;
+        profiles=await cachedQuery(profileKey,async()=>{
+          const pr=await sbClient.from("perfiles").select("id,nombre,apellido,email,zona,activo,rol").in("id",ids);
+          if(pr.error)throw pr.error;
+          return pr.data||[];
+        });
+      }
+      const profileMap=new Map(profiles.map(p=>[p.id,p]));
+      surveyReportData=rows.map(s=>({...s,perfiles:profileMap.get(s.asesor_id)||null}));
+      surveyReportLoadedKey=key;
+      populateSurveyZoneFilter();
+      populateSurveyAdvisorFilter();
+      renderSurveyReport();
     })().finally(()=>{surveyReportLoading=null;});
     return surveyReportLoading;
   }
@@ -591,9 +685,11 @@
     populateSurveyZoneFilter();
   }
   function populateSurveyZoneFilter(){
-    const el=id("filtroEncuestaZona");if(!el)return;const selected=el.value;
-    const zones=[...new Set([...surveys.map(s=>s.perfiles?.zona),...advisors.map(a=>a.zona)].filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-    el.innerHTML='<option value="">Todas las zonas</option>'+zones.map(z=>`<option value="${escapeHTML(z)}">${escapeHTML(z)}</option>`).join("");el.value=selected;
+    const el=id("filtroEncuestaZona");if(!el)return;
+    const selected=el.value;
+    const zones=["CAUCASIA","MONTELIBANO","LA APARTADA","BUENAVISTA","SAN MARCOS"];
+    el.innerHTML='<option value="">Todas las zonas</option>'+zones.map(z=>`<option value="${escapeHTML(z)}">${escapeHTML(z)}</option>`).join("");
+    el.value=zones.includes(selected)?selected:"";
   }
 
   function buildReportHTML(){const filtered=getFilteredAdminSales(),total=filtered.length,ventas=filtered.filter(s=>s.tipo_operacion==="Venta").length,recon=filtered.filter(s=>s.tipo_operacion==="Reconexión").length,otros=filtered.filter(s=>s.tipo_operacion==="Otros").length,real=filtered.filter(s=>s.estado_instalacion==="REALIZADA").length,pending=filtered.filter(s=>s.estado_instalacion==="PENDIENTE").length,cancel=filtered.filter(s=>s.estado_instalacion==="CANCELADA").length,pct=n=>total?Math.round(n/total*100):0;
@@ -739,7 +835,7 @@
 
   function showAuthView(){["auth-view","register-view","vista-asesor","admin-dashboard","vista-admin","vista-usuarios","vista-configuracion"].forEach(x=>id(x).classList.add("hidden"));id("auth-view").classList.remove("hidden");id("session-area").classList.add("hidden");id("btn-menu").classList.add("hidden");id("sidebar").classList.add("hidden");}
   function showView(viewId){["auth-view","register-view","vista-asesor","vista-encuestas","admin-dashboard","vista-admin","vista-reporte-encuestas","vista-usuarios","vista-configuracion","vista-respaldo"].forEach(x=>id(x).classList.add("hidden"));id(viewId).classList.remove("hidden");if(viewId!=="auth-view"&&currentProfile){id("session-area").classList.remove("hidden");id("btn-menu").classList.remove("hidden");id("sidebar").classList.remove("hidden");}if(viewId==="vista-admin")loadAdvisorsForFilters();
-    if(viewId==="vista-reporte-encuestas"){ensureSurveyZoneFilter();loadSurveyReportData().catch(e=>console.warn("No fue posible cargar el reporte de encuestas",e));}
+    if(viewId==="vista-reporte-encuestas"){ensureSurveyZoneFilter();loadSurveyReportData().catch(e=>{console.error("No fue posible cargar el reporte de encuestas",e);showToast("No fue posible cargar el reporte de encuestas. Revisa tu conexión o los permisos.",true);});}
   }
   async function logout(){const {error}=await sbClient.auth.signOut();if(error)showToast("No fue posible cerrar la sesión.",true);}
   function installationStatus(s){if(s==="REALIZADA")return '<span class="badge badge-complete">Realizada</span>';if(s==="CANCELADA")return '<span class="badge badge-cancelled">Cancelada</span>';return '<span class="badge badge-pending">Pendiente</span>';}
